@@ -1,0 +1,84 @@
+2025/05/14-12:47:52.485 27dac7 Reusing MANIFEST /Users/ndaze/Desktop/self-documenter/chrome-data-dir/Default/Local Storage/leveldb/MANIFEST-000001
+2025/05/14-12:47:52.487 27dac7 Recovering log #59
+2025/05/14-12:47:52.488 27dac7 Reusing old log /Users/ndaze/Desktop/self-documenter/chrome-data-dir/Default/Local Storage/leveldb/000059.log 
+2025/05/14-12:48:27.779 27dacb Level-0 table #63: started
+2025/05/14-12:48:27.787 27dacb Level-0 table #63: 66499 bytes OK
+2025/05/14-12:48:27.790 27dacb Delete type=0 #59
+2025/05/14-12:48:27.791 27dacb Compacting 4@0 + 1@1 files
+2025/05/14-12:48:27.794 27dacb Generated table #64@0: 23 keys, 20855 bytes
+2025/05/14-12:48:27.794 27dacb Compacted 4@0 + 1@1 files => 20855 bytes
+2025/05/14-12:48:27.796 27dacb compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/05/14-12:48:27.796 27dacb Delete type=2 #63
+2025/05/14-12:48:27.797 27dacb Delete type=2 #60
+2025/05/14-12:48:27.797 27dacb Delete type=2 #58
+2025/05/14-12:48:27.797 27dacb Delete type=2 #56
+2025/05/14-12:48:27.797 27dacb Delete type=2 #54
+2025/05/14-12:48:52.494 27dacb Level-0 table #66: started
+2025/05/14-12:48:52.502 27dacb Level-0 table #66: 63573 bytes OK
+2025/05/14-12:48:52.506 27dacb Delete type=0 #62
+2025/05/14-12:49:17.453 27dacb Level-0 table #68: started
+2025/05/14-12:49:17.457 27dacb Level-0 table #68: 57837 bytes OK
+2025/05/14-12:49:17.459 27dacb Delete type=0 #65
+2025/05/14-12:49:36.570 27dacb Level-0 table #70: started
+2025/05/14-12:49:36.576 27dacb Level-0 table #70: 43033 bytes OK
+2025/05/14-12:49:36.581 27dacb Delete type=0 #67
+2025/05/14-12:49:52.278 27dac7 Level-0 table #72: started
+2025/05/14-12:49:52.285 27dac7 Level-0 table #72: 50474 bytes OK
+2025/05/14-12:49:52.289 27dac7 Delete type=0 #69
+2025/05/14-12:49:52.290 27dac7 Compacting 4@0 + 1@1 files
+2025/05/14-12:49:52.291 27dac7 Generated table #73@0: 23 keys, 27618 bytes
+2025/05/14-12:49:52.292 27dac7 Compacted 4@0 + 1@1 files => 27618 bytes
+2025/05/14-12:49:52.294 27dac7 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/05/14-12:49:52.294 27dac7 Delete type=2 #64
+2025/05/14-12:49:52.294 27dac7 Delete type=2 #70
+2025/05/14-12:49:52.294 27dac7 Delete type=2 #66
+2025/05/14-12:49:52.294 27dac7 Delete type=2 #72
+2025/05/14-12:49:52.294 27dac7 Delete type=2 #68
+2025/05/14-12:50:11.982 27dacb Level-0 table #75: started
+2025/05/14-12:50:11.986 27dacb Level-0 table #75: 64045 bytes OK
+2025/05/14-12:50:11.992 27dacb Delete type=0 #71
+2025/05/14-12:50:29.463 27dacb Level-0 table #77: started
+2025/05/14-12:50:29.469 27dacb Level-0 table #77: 55265 bytes OK
+2025/05/14-12:50:29.473 27dacb Delete type=0 #74
+2025/05/14-12:50:42.618 27dac7 Level-0 table #79: started
+2025/05/14-12:50:42.627 27dac7 Level-0 table #79: 60513 bytes OK
+2025/05/14-12:50:42.633 27dac7 Delete type=0 #76
+2025/05/14-12:51:10.855 27dacb Level-0 table #81: started
+2025/05/14-12:51:10.857 27dacb Level-0 table #81: 58834 bytes OK
+2025/05/14-12:51:10.861 27dacb Delete type=0 #78
+2025/05/14-12:51:10.861 27dacb Compacting 4@0 + 1@1 files
+2025/05/14-12:51:10.863 27dacb Generated table #82@0: 23 keys, 20339 bytes
+2025/05/14-12:51:10.863 27dacb Compacted 4@0 + 1@1 files => 20339 bytes
+2025/05/14-12:51:10.864 27dacb compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/05/14-12:51:10.865 27dacb Delete type=2 #77
+2025/05/14-12:51:10.865 27dacb Delete type=2 #75
+2025/05/14-12:51:10.865 27dacb Delete type=2 #73
+2025/05/14-12:51:10.865 27dacb Delete type=2 #81
+2025/05/14-12:51:10.865 27dacb Delete type=2 #79
+2025/05/14-12:53:03.957 27dac7 Level-0 table #84: started
+2025/05/14-12:53:03.960 27dac7 Level-0 table #84: 61131 bytes OK
+2025/05/14-12:53:03.963 27dac7 Delete type=0 #80
+2025/05/14-12:53:25.489 27dacb Level-0 table #86: started
+2025/05/14-12:53:25.492 27dacb Level-0 table #86: 48792 bytes OK
+2025/05/14-12:53:25.494 27dacb Delete type=0 #83
+2025/05/14-12:53:41.135 27dac7 Level-0 table #88: started
+2025/05/14-12:53:41.141 27dac7 Level-0 table #88: 58112 bytes OK
+2025/05/14-12:53:41.145 27dac7 Delete type=0 #85
+2025/05/14-12:54:05.375 27dac7 Level-0 table #90: started
+2025/05/14-12:54:05.378 27dac7 Level-0 table #90: 50275 bytes OK
+2025/05/14-12:54:05.381 27dac7 Delete type=0 #87
+2025/05/14-12:54:05.382 27dac7 Compacting 4@0 + 1@1 files
+2025/05/14-12:54:05.383 27dac7 Generated table #91@0: 23 keys, 11334 bytes
+2025/05/14-12:54:05.384 27dac7 Compacted 4@0 + 1@1 files => 11334 bytes
+2025/05/14-12:54:05.385 27dac7 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/05/14-12:54:05.385 27dac7 Delete type=2 #88
+2025/05/14-12:54:05.385 27dac7 Delete type=2 #82
+2025/05/14-12:54:05.385 27dac7 Delete type=2 #86
+2025/05/14-12:54:05.385 27dac7 Delete type=2 #84
+2025/05/14-12:54:05.385 27dac7 Delete type=2 #90
+2025/05/14-12:54:14.745 27dacb Level-0 table #93: started
+2025/05/14-12:54:14.751 27dacb Level-0 table #93: 45985 bytes OK
+2025/05/14-12:54:14.754 27dacb Delete type=0 #89
+2025/05/14-12:54:32.229 27dac7 Level-0 table #95: started
+2025/05/14-12:54:32.233 27dac7 Level-0 table #95: 55293 bytes OK
+2025/05/14-12:54:32.234 27dac7 Delete type=0 #92

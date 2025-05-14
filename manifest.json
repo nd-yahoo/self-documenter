@@ -1,0 +1,21 @@
+{
+  "name": "self-documenter",
+  "id": "1504301916610915651",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "documentAccess": "dynamic-page",
+  "editorType": [
+    "figma",
+    "figjam",
+    "slides"
+  ],
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": [
+      "*"
+    ],
+    "reasoning": "This plugin needs to connect to various APIs to fetch and store documentation data."
+  }
+}

@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    select, input[type="file"], input[type="text"], button {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+      font-size: 14px;
+    }
+    button {
+      background-color: #18a0fb;
+      color: white;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    button:hover {
+      background-color: #0d8de3;
+    }
+    #cancel {
+      background-color: #f5f5f5;
+      color: #333;
+      margin-top: 8px;
+    }
+    #cancel:hover {
+      background-color: #e0e0e0;
+    }
+    .preview {
+      background-color: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 8px;
+      margin-top: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+    .columns-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .column-item {
+      background-color: #f5f5f5;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .column-item:hover {
+      background-color: #e0e0e0;
+    }
+    .column-item.selected {
+      background-color: #18a0fb;
+      color: white;
+    }
+    .invisible {
+      display: none;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #18a0fb;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h2>CSV to Screenshots Importer</h2>
+  
+  <div id="step1">
+    <div class="form-group">
+      <label for="csvFile">Upload CSV File:</label>
+      <input type="file" id="csvFile" accept=".csv">
+    </div>
+    
+    <div class="form-group preview-container invisible">
+      <label>CSV Preview:</label>
+      <div id="csvPreview" class="preview"></div>
+    </div>
+    
+    <button id="loadColumns">Load Columns</button>
+  </div>
+  
+  <div id="step2" class="invisible">
+    <div class="form-group">
+      <label>Select Query Column:</label>
+      <div id="columnsContainer" class="columns-container"></div>
+    </div>
+    
+    <div class="form-group">
+      <label for="deviceMode">Device Mode:</label>
+      <select id="deviceMode">
+        <option value="mobile">Mobile</option>
+        <option value="desktop">Desktop</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label>Additional Data Columns (to display as text):</label>
+      <div id="additionalColumnsContainer" class="columns-container"></div>
+    </div>
+    
+    <div class="form-group">
+      <label for="yahooScreenshots">Upload Yahoo Screenshots:</label>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="file" id="yahooScreenshots" accept=".png,.jpg,.jpeg" multiple>
+        <div style="background-color: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 13px;">
+          <strong>Yahoo Search Results:</strong>
+          <ol style="margin: 8px 0 0 20px; padding: 0;">
+            <li>Click "Browse" above</li>
+            <li>Navigate to your Yahoo screenshots folder</li>
+            <li>Use Ctrl+A (Windows) or Cmd+A (Mac) to select all files</li>
+          </ol>
+          <div style="margin-top: 8px; font-size: 12px; color: #666;">
+            <strong>Note:</strong> Large images (>3MB) will be automatically resized. Max supported size is 10MB per image.
+          </div>
+        </div>
+      </div>
+      <div id="yahooScreenshotsPreview" class="preview" style="display: none;">
+        <div id="yahooScreenshotsList"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="competitorScreenshots">Upload Competitor Screenshots:</label>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="file" id="competitorScreenshots" accept=".png,.jpg,.jpeg" multiple>
+        <div style="background-color: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 13px;">
+          <strong>Competitor Search Results:</strong>
+          <ol style="margin: 8px 0 0 20px; padding: 0;">
+            <li>Click "Browse" above</li>
+            <li>Navigate to your competitor screenshots folder (Google, Bing, etc.)</li>
+            <li>Use Ctrl+A (Windows) or Cmd+A (Mac) to select all files</li>
+          </ol>
+          <div style="margin-top: 8px; font-size: 12px; color: #666;">
+            <strong>Note:</strong> Large images (>3MB) will be automatically resized. Max supported size is 10MB per image.
+          </div>
+        </div>
+      </div>
+      <div id="competitorScreenshotsPreview" class="preview" style="display: none;">
+        <div id="competitorScreenshotsList"></div>
+      </div>
+    </div>
+    
+    <button id="createScreenshots">Create Comparison Cards</button>
+    <button id="back">Back</button>
+  </div>
+  
+  <div id="loadingView" class="invisible">
+    <div class="loading">
+      <div class="spinner"></div>
+      <span id="loadingMessage">Processing...</span>
+    </div>
+    <div id="debugOutput" style="margin-top: 20px; background: #f0f0f0; padding: 10px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;"></div>
+  </div>
+  
+  <button id="cancel">Cancel</button>
+  
+  <script>
+    // Globals
+    let csvData = null;
+    let headers = [];
+    let selectedQueryColumn = null;
+    let selectedAdditionalColumns = [];
+    let uploadedYahooScreenshots = []; // Yahoo screenshots
+    let uploadedCompetitorScreenshots = []; // Competitor screenshots
+    let detectedCompetitor = ''; // To store the detected competitor engine
+    
+    // DOM elements
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const loadingView = document.getElementById('loadingView');
+    const csvFileInput = document.getElementById('csvFile');
+    const previewContainer = document.querySelector('.preview-container');
+    const csvPreview = document.getElementById('csvPreview');
+    const loadColumnsBtn = document.getElementById('loadColumns');
+    const columnsContainer = document.getElementById('columnsContainer');
+    const additionalColumnsContainer = document.getElementById('additionalColumnsContainer');
+    const createScreenshotsBtn = document.getElementById('createScreenshots');
+    const backBtn = document.getElementById('back');
+    const cancelBtn = document.getElementById('cancel');
+    const deviceModeSelect = document.getElementById('deviceMode');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const yahooScreenshotsInput = document.getElementById('yahooScreenshots');
+    const yahooScreenshotsPreview = document.getElementById('yahooScreenshotsPreview');
+    const yahooScreenshotsList = document.getElementById('yahooScreenshotsList');
+    const competitorScreenshotsInput = document.getElementById('competitorScreenshots');
+    const competitorScreenshotsPreview = document.getElementById('competitorScreenshotsPreview');
+    const competitorScreenshotsList = document.getElementById('competitorScreenshotsList');
+    
+    // Event listeners
+    csvFileInput.addEventListener('change', handleFileSelect);
+    loadColumnsBtn.addEventListener('click', goToStep2);
+    backBtn.addEventListener('click', goToStep1);
+    createScreenshotsBtn.addEventListener('click', startScreenshotProcess);
+    cancelBtn.addEventListener('click', cancelPlugin);
+    yahooScreenshotsInput.addEventListener('change', handleYahooScreenshotSelect);
+    competitorScreenshotsInput.addEventListener('change', handleCompetitorScreenshotSelect);
+    
+    // Functions
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        try {
+          // Improved CSV parsing for preview
+          // Handle different line endings (CRLF, LF)
+          const lines = contents.split(/\r\n|\n|\r/);
+          
+          if (lines.length > 0) {
+            // Parse headers using a more robust approach
+            const parseCSVLine = (line) => {
+              const cells = [];
+              let currentCell = '';
+              let inQuotes = false;
+              
+              for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"' && (i === 0 || line[i-1] !== '\\')) {
+                  inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                  cells.push(currentCell.trim());
+                  currentCell = '';
+                } else {
+                  currentCell += char;
+                }
+              }
+              
+              // Add the last cell
+              cells.push(currentCell.trim());
+              return cells;
+            };
+            
+            headers = parseCSVLine(lines[0]);
+            
+            // Show preview
+            let previewHTML = '<table style="width:100%;">';
+            
+            // Headers
+            previewHTML += '<tr>';
+            headers.forEach(header => {
+              previewHTML += `<th style="text-align:left;padding:4px;border-bottom:1px solid #ddd;">${header}</th>`;
+            });
+            previewHTML += '</tr>';
+            
+            // Data (up to 5 rows)
+            const maxRows = Math.min(lines.length, 6);
+            for (let i = 1; i < maxRows; i++) {
+              const cells = parseCSVLine(lines[i]);
+              previewHTML += '<tr>';
+              cells.forEach(cell => {
+                previewHTML += `<td style="padding:4px;border-bottom:1px solid #eee;">${cell}</td>`;
+              });
+              previewHTML += '</tr>';
+            }
+            
+            previewHTML += '</table>';
+            csvPreview.innerHTML = previewHTML;
+            previewContainer.classList.remove('invisible');
+            
+            // Store the CSV data
+            csvData = contents;
+          }
+        } catch (error) {
+          console.error('Error parsing CSV:', error);
+          csvPreview.textContent = 'Error parsing CSV file';
+          previewContainer.classList.remove('invisible');
+        }
+      };
+      
+      reader.readAsText(file);
+    }
+    
+    function goToStep2() {
+      if (!csvData) {
+        alert('Please upload a CSV file first');
+        return;
+      }
+      
+      step1.classList.add('invisible');
+      step2.classList.remove('invisible');
+      
+      // Populate columns selection
+      populateColumns();
+    }
+    
+    function goToStep1() {
+      step2.classList.add('invisible');
+      step1.classList.remove('invisible');
+    }
+    
+    function populateColumns() {
+      // Clear containers
+      columnsContainer.innerHTML = '';
+      additionalColumnsContainer.innerHTML = '';
+      
+      // Add column options
+      headers.forEach((header, index) => {
+        // Query column options
+        const columnEl = document.createElement('div');
+        columnEl.className = 'column-item';
+        columnEl.textContent = header;
+        columnEl.dataset.index = index;
+        columnEl.onclick = function() {
+          // Deselect all
+          document.querySelectorAll('#columnsContainer .column-item').forEach(el => {
+            el.classList.remove('selected');
+          });
+          
+          // Select this one
+          this.classList.add('selected');
+          selectedQueryColumn = {
+            index: parseInt(this.dataset.index),
+            name: this.textContent
+          };
+        };
+        columnsContainer.appendChild(columnEl);
+        
+        // Additional columns
+        const additionalEl = document.createElement('div');
+        additionalEl.className = 'column-item';
+        additionalEl.textContent = header;
+        additionalEl.dataset.index = index;
+        additionalEl.onclick = function() {
+          this.classList.toggle('selected');
+          
+          const index = parseInt(this.dataset.index);
+          const name = this.textContent;
+          
+          if (this.classList.contains('selected')) {
+            // Add to selected
+            selectedAdditionalColumns.push({ index, name });
+          } else {
+            // Remove from selected
+            selectedAdditionalColumns = selectedAdditionalColumns.filter(col => col.index !== index);
+          }
+        };
+        additionalColumnsContainer.appendChild(additionalEl);
+      });
+    }
+    
+    function startScreenshotProcess() {
+      if (!selectedQueryColumn) {
+        showError('Please select a query column first');
+        return;
+      }
+      
+      if (uploadedYahooScreenshots.length === 0 && uploadedCompetitorScreenshots.length === 0) {
+        showError('Please upload at least one set of screenshots');
+        return;
+      }
+      
+      showLoading('Processing screenshots...');
+      
+      // Process both sets of screenshots in parallel
+      Promise.all([
+        uploadedYahooScreenshots.length > 0 ? processScreenshots(uploadedYahooScreenshots, 'yahoo') : Promise.resolve([]),
+        uploadedCompetitorScreenshots.length > 0 ? processScreenshots(uploadedCompetitorScreenshots, detectedCompetitor || 'competitor') : Promise.resolve([])
+      ]).then(([processedYahooScreenshots, processedCompetitorScreenshots]) => {
+        // Send the data to the plugin
+        parent.postMessage({
+          pluginMessage: {
+            type: 'process-csv',
+            csvData: csvData,
+            queryColumn: selectedQueryColumn,
+            additionalColumns: selectedAdditionalColumns,
+            deviceMode: deviceModeSelect.value,
+            yahooScreenshots: processedYahooScreenshots,
+            competitorScreenshots: processedCompetitorScreenshots,
+            competitorEngine: detectedCompetitor || 'unknown'
+          }
+        }, '*');
+      }).catch(error => {
+        appendDebugOutput('Error processing screenshots: ' + error.message);
+        showLoading('Error processing screenshots: ' + error.message);
+      });
+    }
+    
+    // Function to handle Yahoo screenshot file selection
+    function handleYahooScreenshotSelect(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) {
+        yahooScreenshotsPreview.style.display = 'none';
+        uploadedYahooScreenshots = [];
+        return;
+      }
+      
+      uploadedYahooScreenshots = Array.from(files);
+      yahooScreenshotsList.innerHTML = '';
+      
+      // Check for large files and show warnings
+      const MAX_RECOMMENDED_SIZE = 3 * 1024 * 1024; // 3MB
+      const largeFiles = uploadedYahooScreenshots.filter(file => file.size > MAX_RECOMMENDED_SIZE);
+      
+      if (uploadedYahooScreenshots.length > 0) {
+        yahooScreenshotsPreview.style.display = 'block';
+        
+        // Create summary header
+        const summaryHeader = document.createElement('div');
+        summaryHeader.style.marginBottom = '10px';
+        summaryHeader.style.fontWeight = 'bold';
+        summaryHeader.textContent = `Selected ${uploadedYahooScreenshots.length} Yahoo screenshots (${formatFileSize(getTotalFileSize(uploadedYahooScreenshots))})`;
+        yahooScreenshotsList.appendChild(summaryHeader);
+        
+        // Show warning if large files detected
+        if (largeFiles.length > 0) {
+          const warningDiv = document.createElement('div');
+          warningDiv.style.backgroundColor = '#fff3cd';
+          warningDiv.style.color = '#856404';
+          warningDiv.style.padding = '8px';
+          warningDiv.style.marginBottom = '10px';
+          warningDiv.style.borderRadius = '4px';
+          warningDiv.style.fontSize = '12px';
+          warningDiv.innerHTML = `<strong>Warning:</strong> ${largeFiles.length} file(s) exceed recommended size (3MB).<br>Large images will be automatically resized, but this may affect quality.`;
+          yahooScreenshotsList.appendChild(warningDiv);
+          
+          // Log large files
+          appendDebugOutput(`⚠️ ${largeFiles.length} Yahoo screenshots exceed recommended size:`);
+          largeFiles.slice(0, 3).forEach(file => {
+            appendDebugOutput(`  - ${file.name} (${formatFileSize(file.size)})`);
+          });
+          if (largeFiles.length > 3) {
+            appendDebugOutput(`  - ...and ${largeFiles.length - 3} more large files`);
+          }
+        }
+        
+        displayThumbnails(uploadedYahooScreenshots, yahooScreenshotsList);
+        
+        appendDebugOutput(`Selected ${uploadedYahooScreenshots.length} Yahoo screenshots (${formatFileSize(getTotalFileSize(uploadedYahooScreenshots))})`);
+      }
+    }
+    
+    // Function to handle competitor screenshot file selection
+    function handleCompetitorScreenshotSelect(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) {
+        competitorScreenshotsPreview.style.display = 'none';
+        uploadedCompetitorScreenshots = [];
+        detectedCompetitor = '';
+        return;
+      }
+      
+      uploadedCompetitorScreenshots = Array.from(files);
+      competitorScreenshotsList.innerHTML = '';
+      
+      // Try to detect which competitor engine from filenames
+      detectedCompetitor = detectCompetitorEngine(uploadedCompetitorScreenshots);
+      
+      // Check for large files and show warnings
+      const MAX_RECOMMENDED_SIZE = 3 * 1024 * 1024; // 3MB
+      const largeFiles = uploadedCompetitorScreenshots.filter(file => file.size > MAX_RECOMMENDED_SIZE);
+      
+      if (uploadedCompetitorScreenshots.length > 0) {
+        competitorScreenshotsPreview.style.display = 'block';
+        
+        // Create summary header with detected engine
+        const summaryHeader = document.createElement('div');
+        summaryHeader.style.marginBottom = '10px';
+        summaryHeader.style.fontWeight = 'bold';
+        let headerText = `Selected ${uploadedCompetitorScreenshots.length} competitor screenshots`;
+        if (detectedCompetitor) {
+          headerText += ` (${detectedCompetitor.charAt(0).toUpperCase() + detectedCompetitor.slice(1)})`;
+        }
+        headerText += ` (${formatFileSize(getTotalFileSize(uploadedCompetitorScreenshots))})`;
+        summaryHeader.textContent = headerText;
+        competitorScreenshotsList.appendChild(summaryHeader);
+        
+        // Show warning if large files detected
+        if (largeFiles.length > 0) {
+          const warningDiv = document.createElement('div');
+          warningDiv.style.backgroundColor = '#fff3cd';
+          warningDiv.style.color = '#856404';
+          warningDiv.style.padding = '8px';
+          warningDiv.style.marginBottom = '10px';
+          warningDiv.style.borderRadius = '4px';
+          warningDiv.style.fontSize = '12px';
+          warningDiv.innerHTML = `<strong>Warning:</strong> ${largeFiles.length} file(s) exceed recommended size (3MB).<br>Large images will be automatically resized, but this may affect quality.`;
+          competitorScreenshotsList.appendChild(warningDiv);
+          
+          // Log large files
+          appendDebugOutput(`⚠️ ${largeFiles.length} competitor screenshots exceed recommended size:`);
+          largeFiles.slice(0, 3).forEach(file => {
+            appendDebugOutput(`  - ${file.name} (${formatFileSize(file.size)})`);
+          });
+          if (largeFiles.length > 3) {
+            appendDebugOutput(`  - ...and ${largeFiles.length - 3} more large files`);
+          }
+        }
+        
+        displayThumbnails(uploadedCompetitorScreenshots, competitorScreenshotsList);
+        
+        appendDebugOutput(`Selected ${uploadedCompetitorScreenshots.length} competitor screenshots (${formatFileSize(getTotalFileSize(uploadedCompetitorScreenshots))})`);
+        if (detectedCompetitor) {
+          appendDebugOutput(`Detected competitor search engine: ${detectedCompetitor}`);
+        }
+      }
+    }
+    
+    // Helper function to display thumbnails
+    function displayThumbnails(files, container) {
+      const displayLimit = Math.min(10, files.length);
+      
+      // Create a grid for thumbnails
+      const grid = document.createElement('div');
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+      grid.style.gap = '10px';
+      
+      for (let i = 0; i < displayLimit; i++) {
+        const file = files[i];
+        
+        // Create thumbnail container
+        const thumbnailContainer = document.createElement('div');
+        thumbnailContainer.style.textAlign = 'center';
+        thumbnailContainer.style.fontSize = '11px';
+        
+        // Create thumbnail
+        const thumbnail = document.createElement('div');
+        thumbnail.style.width = '60px';
+        thumbnail.style.height = '60px';
+        thumbnail.style.margin = '0 auto 5px auto';
+        thumbnail.style.backgroundColor = '#eee';
+        thumbnail.style.backgroundSize = 'cover';
+        thumbnail.style.backgroundPosition = 'center';
+        thumbnail.style.borderRadius = '4px';
+        
+        // Try to show image preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          thumbnail.style.backgroundImage = `url(${e.target.result})`;
+        };
+        reader.readAsDataURL(file);
+        
+        // File info
+        const nameSpan = document.createElement('div');
+        nameSpan.textContent = file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name;
+        nameSpan.title = file.name;
+        
+        const sizeSpan = document.createElement('div');
+        sizeSpan.textContent = formatFileSize(file.size);
+        sizeSpan.style.color = '#666';
+        
+        thumbnailContainer.appendChild(thumbnail);
+        thumbnailContainer.appendChild(nameSpan);
+        thumbnailContainer.appendChild(sizeSpan);
+        grid.appendChild(thumbnailContainer);
+      }
+      
+      container.appendChild(grid);
+      
+      // Show how many more files are selected
+      if (files.length > displayLimit) {
+        const moreInfo = document.createElement('div');
+        moreInfo.textContent = `... and ${files.length - displayLimit} more files`;
+        moreInfo.style.marginTop = '10px';
+        moreInfo.style.textAlign = 'center';
+        moreInfo.style.fontStyle = 'italic';
+        container.appendChild(moreInfo);
+      }
+    }
+    
+    // Function to detect competitor search engine from filenames
+    function detectCompetitorEngine(files) {
+      if (!files || files.length === 0) return '';
+      
+      // Count occurrences of each engine in filenames
+      const engineCounts = {
+        google: 0,
+        bing: 0,
+        duckduckgo: 0
+      };
+      
+      for (const file of files) {
+        const filename = file.name.toLowerCase();
+        
+        if (filename.includes('google')) {
+          engineCounts.google++;
+        } else if (filename.includes('bing')) {
+          engineCounts.bing++;
+        } else if (filename.includes('duckduckgo') || filename.includes('duck_duck_go') || filename.includes('duckduck')) {
+          engineCounts.duckduckgo++;
+        }
+      }
+      
+      // Find the engine with the most occurrences
+      let maxCount = 0;
+      let detectedEngine = '';
+      
+      for (const [engine, count] of Object.entries(engineCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          detectedEngine = engine;
+        }
+      }
+      
+      // If no engine found in filenames, try to infer from directory structure in the first file
+      if (!detectedEngine && files.length > 0) {
+        const firstFilePath = files[0].webkitRelativePath || '';
+        if (firstFilePath.includes('/google/') || firstFilePath.includes('\\google\\')) {
+          detectedEngine = 'google';
+        } else if (firstFilePath.includes('/bing/') || firstFilePath.includes('\\bing\\')) {
+          detectedEngine = 'bing';
+        } else if (firstFilePath.includes('/duckduckgo/') || firstFilePath.includes('\\duckduckgo\\')) {
+          detectedEngine = 'duckduckgo';
+        }
+      }
+      
+      return detectedEngine;
+    }
+    
+    // Helper function to format file size
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      else return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    // Helper function to get total size of files
+    function getTotalFileSize(files) {
+      return files.reduce((total, file) => total + file.size, 0);
+    }
+    
+    // Extract query from screenshot filename
+    function extractQueryFromFilename(filename, knownQueries) {
+      try {
+        // First, try to parse standard filename format from our generator
+        // Format pattern: 001_yahoo_mobile_QUERY_2025-05-14T14_55_28_926Z.png
+        const match = filename.match(/\d+_[a-z]+_[a-z]+_(.+?)_\d{4}-\d{2}-\d{2}T/i);
+        if (match && match[1]) {
+          let query = match[1].replace(/_/g, ' ').trim();
+          return query;
+        }
+        
+        // Second approach: if filename includes a query directly
+        if (knownQueries && knownQueries.size > 0) {
+          // Sort queries by length (longest first) to prioritize more specific matches
+          const sortedQueries = Array.from(knownQueries).sort((a, b) => b.length - a.length);
+          
+          // First try exact matching
+          for (const knownQuery of sortedQueries) {
+            // Clean up filename for comparison
+            const cleanFilename = filename
+              .replace(/\.(png|jpg|jpeg)$/i, '')
+              .replace(/^\d+[_-]/, '')
+              .replace(/[_-]/g, ' ')
+              .toLowerCase();
+              
+            // Check if filename contains the exact query
+            if (cleanFilename.includes(knownQuery.toLowerCase())) {
+              return knownQuery;
+            }
+          }
+          
+          // Second pass: try partial matching for longer queries
+          for (const knownQuery of sortedQueries) {
+            if (knownQuery.length < 10) continue; // Only use this for longer queries
+            
+            const cleanFilename = filename
+              .replace(/\.(png|jpg|jpeg)$/i, '')
+              .replace(/^\d+[_-]/, '')
+              .replace(/[_-]/g, ' ')
+              .toLowerCase();
+              
+            // Get first 10+ chars of query for matching
+            const queryStart = knownQuery.toLowerCase().substring(0, Math.min(15, knownQuery.length));
+            if (cleanFilename.includes(queryStart)) {
+              return knownQuery;
+            }
+          }
+        }
+        
+        // Third approach: just clean the filename as a fallback
+        let nameWithoutExt = filename.replace(/\.(png|jpg|jpeg)$/i, '');
+        let possibleQuery = nameWithoutExt
+          .replace(/^\d+[_-]/, '')  // Remove leading numbers and underscore/dash
+          .replace(/[_-]\d+$/, '')  // Remove trailing numbers
+          .replace(/[_-]/g, ' ')    // Replace underscores/dashes with spaces
+          .trim();
+        
+        return possibleQuery;
+      } catch (e) {
+        appendDebugOutput(`Error parsing filename ${filename}: ${e.message}`);
+        return null;
+      }
+    }
+    
+    // Process a set of screenshots
+    async function processScreenshots(files, engine) {
+      showLoading(`Processing ${files.length} ${engine} screenshots...`);
+      appendDebugOutput(`Starting ${engine} screenshot processing`);
+      
+      // Extract query data from CSV if selected query column exists
+      const queries = new Set();
+      if (csvData && selectedQueryColumn) {
+        const lines = csvData.split('\n');
+        for (let i = 1; i < lines.length; i++) {  // Skip header
+          if (!lines[i].trim()) continue;
+          
+          const cells = lines[i].split(',');
+          if (selectedQueryColumn.index < cells.length) {
+            const query = cells[selectedQueryColumn.index].trim();
+            if (query) queries.add(query);
+          }
+        }
+        appendDebugOutput(`Extracted ${queries.size} unique queries from CSV for ${engine} matching`);
+      }
+      
+      const processedScreenshots = [];
+      const promises = [];
+      
+      // Figma has strict image size limits - we'll resize if needed
+      const MAX_IMAGE_SIZE = 2097152; // 2MB in bytes
+      const MAX_IMAGE_DIMENSION = 4096; // 4096px max dimension
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Add to promises array
+        promises.push(
+          (async () => {
+            try {
+              // Extract query from filename
+              const query = extractQueryFromFilename(file.name, queries);
+              
+              if (!query) {
+                appendDebugOutput(`⚠️ Couldn't extract query from filename: ${file.name}`);
+                return;
+              }
+              
+              // First check file size
+              if (file.size > MAX_IMAGE_SIZE) {
+                appendDebugOutput(`⚠️ File size too large (${formatFileSize(file.size)}), resizing: ${file.name}`);
+                
+                // Read as image for resizing
+                const imageBlob = await resizeImageFile(file, MAX_IMAGE_DIMENSION);
+                if (!imageBlob) {
+                  appendDebugOutput(`❌ Failed to resize image: ${file.name}`);
+                  return;
+                }
+                
+                // Convert blob to ArrayBuffer
+                const imageBytes = await readBlobAsArrayBuffer(imageBlob);
+                
+                // Add to processed screenshots with resize note
+                processedScreenshots.push({
+                  query: query,
+                  imageBytes: new Uint8Array(imageBytes),
+                  filename: file.name + " (resized)",
+                  engine: engine
+                });
+              } else {
+                // File size is acceptable, read normally
+                const imageBytes = await readFileAsArrayBuffer(file);
+                
+                // Add to processed screenshots
+                processedScreenshots.push({
+                  query: query,
+                  imageBytes: new Uint8Array(imageBytes),
+                  filename: file.name,
+                  engine: engine
+                });
+              }
+              
+              if (i % 10 === 0 || i === files.length - 1) {
+                showLoading(`Processed ${i+1}/${files.length} ${engine} screenshots...`);
+              }
+            } catch (err) {
+              appendDebugOutput(`Error processing ${engine} screenshot ${file.name}: ${err.message}`);
+            }
+          })()
+        );
+      }
+      
+      // Wait for all promises to resolve
+      await Promise.all(promises);
+      
+      appendDebugOutput(`Completed processing ${processedScreenshots.length} ${engine} screenshots`);
+      return processedScreenshots;
+    }
+    
+    // Resize an image file to fit within Figma's limits
+    async function resizeImageFile(file, maxDimension) {
+      return new Promise((resolve, reject) => {
+        try {
+          // Create an image element to load the file
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            
+            // Check if resize is needed
+            if (img.width <= maxDimension && img.height <= maxDimension) {
+              // Image is already small enough, convert as-is
+              file.arrayBuffer().then(buffer => {
+                resolve(new Blob([buffer], { type: file.type }));
+              }).catch(reject);
+              return;
+            }
+            
+            // Calculate new dimensions while maintaining aspect ratio
+            let newWidth, newHeight;
+            if (img.width > img.height) {
+              newWidth = Math.min(img.width, maxDimension);
+              newHeight = Math.round((newWidth / img.width) * img.height);
+            } else {
+              newHeight = Math.min(img.height, maxDimension);
+              newWidth = Math.round((newHeight / img.height) * img.width);
+            }
+            
+            // Create canvas for resizing
+            const canvas = document.createElement('canvas');
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            // Draw the image on the canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+            
+            // Convert to blob with reduced quality for JPEGs
+            const quality = file.type.includes('jpeg') || file.type.includes('jpg') ? 0.8 : 1;
+            canvas.toBlob(blob => {
+              if (!blob) {
+                reject(new Error('Failed to create blob'));
+                return;
+              }
+              resolve(blob);
+            }, file.type || 'image/png', quality);
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to load image for resizing'));
+          };
+          
+          img.src = url;
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+    
+    // Read blob as ArrayBuffer
+    function readBlobAsArrayBuffer(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsArrayBuffer(blob);
+      });
+    }
+    
+    // Read file as ArrayBuffer
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+    
+    function cancelPlugin() {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    }
+    
+    function showLoading(message) {
+      step1.classList.add('invisible');
+      step2.classList.add('invisible');
+      loadingView.classList.remove('invisible');
+      loadingMessage.textContent = message || 'Processing...';
+    }
+    
+    function appendDebugOutput(message) {
+      const debugOutput = document.getElementById('debugOutput');
+      debugOutput.style.display = 'block';
+      const timestamp = new Date().toLocaleTimeString();
+      debugOutput.innerHTML += `[${timestamp}] ${message}\n`;
+      debugOutput.scrollTop = debugOutput.scrollHeight;
+    }
+    
+    // Listen for messages from the plugin
+    window.onmessage = function(event) {
+      const message = event.data.pluginMessage;
+      if (!message) return;
+      
+      if (message.type === 'update-progress') {
+        loadingMessage.textContent = message.message;
+        appendDebugOutput(message.message);
+      } else if (message.type === 'debug-info') {
+        appendDebugOutput(message.message);
+      }
+    };
+  </script>
+</body>
+</html>
+
