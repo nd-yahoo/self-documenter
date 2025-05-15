@@ -5,9 +5,9 @@ node_modules
 
 out/
 dist/
+build/
 code.js
 
 screenshots/
 chrome-data-dir/
-build/
 .DS_Store
