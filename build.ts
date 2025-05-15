@@ -15,7 +15,7 @@ export * from './src/utils/RateLimiter';
 export * from './src/utils/MemoryManager';
 export * from './src/utils/ErrorTracker';
 export * from './src/utils/notifications';
-export * from './src/utils/csvUtils';
+export * from './src/utils/CsvUtils';
 export * from './src/utils/imageUtils';
 export * from './src/ui/figmaElements';
 export * from './src/services/csvProcessor'; 
