@@ -2,7 +2,7 @@
 // npm run screenshot -- ~/Downloads/queries.csv --column="query" --engine=yahoo --mode=mobile --output=screenshots
 // npm run screenshot -- ~/Downloads/queries.csv --column="query" --engine=google --mode=mobile --output=screenshots
 // npm run screenshot -- ~/Downloads/queries.csv --column="query" --engine=google --mode=mobile --output=screenshots --use-chrome
-// npm run screenshot -- ~/Downloads/queries.csv --column="query" --engine=google --mode=mobile --output=screenshots --compare-mode --quality=85
+// npm run screenshot -- ~/Downloads/queries.csv --column="query" --engine=google --mode=mobile --output=screenshots --compare-mode --quality=85 --use-chrome
 
 import fs from 'fs';
 import path from 'path';
