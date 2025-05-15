@@ -1,5 +1,5 @@
 import { ScreenshotData, QueryColumn, AdditionalColumn, UI_CONSTANTS } from '../types';
-import { parseCSV, validateCSV } from '../utils/csvUtils';
+import CsvUtils from '../utils/CsvUtils';
 import { processFigmaImage } from '../utils/imageUtils';
 import { createTextNode, createFrame } from '../ui/figmaElements';
 import { notifyUser, sendProgressUpdate, sendDebugInfo } from '../utils/notifications';
