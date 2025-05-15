@@ -986,29 +986,36 @@ async function processCSVModified(
   const SCREENSHOT_CONTAINER_HEIGHT = 906; // Visual height of each screenshot component
   const SCREENSHOT_SPACING = 40; // Horizontal spacing between screenshots
   const CARD_INTERNAL_PADDING = 40; // Padding inside the main card
-  const VERTICAL_SPACING_IN_CARD = 20; // Spacing between vertical elements in the card
+  const VERTICAL_SPACING_IN_CARD = 40; // Spacing between vertical elements in the card
 
   // Calculate grid dimensions
   const totalCards = allQueries.size;
   // const CARDS_PER_ROW = 4; // Display 4 comparison cards per row (This might be adjusted based on card width)
-  const MAIN_FRAME_GRID_SPACING = 40;
-
+  const MAIN_FRAME_GRID_SPACING = 100;
 
   // Create frame to hold all cards
   const mainFrame = figma.createFrame();
   mainFrame.name = "Search Engine Comparisons";
   mainFrame.fills = [{ type: 'SOLID', color: { r: 0.95, g: 0.95, b: 0.95 } }];
-  mainFrame.itemSpacing = MAIN_FRAME_GRID_SPACING;
-  mainFrame.layoutMode = "HORIZONTAL"; 
-  mainFrame.primaryAxisSizingMode = "AUTO";
-  mainFrame.counterAxisSizingMode = "AUTO";
+  mainFrame.layoutMode = "NONE"; // Changed to NONE for manual positioning of cards
+  
+  // Calculate width for 4 cards per row
+  const numCardsPerRow = 4;
+  const mainFrameInternalContentWidth = (numCardsPerRow * COMPARISON_CARD_WIDTH) + ((numCardsPerRow - 1) * MAIN_FRAME_GRID_SPACING);
+  
+  // Ensure all paddings are set before calculating total width for resize
   mainFrame.paddingLeft = MAIN_FRAME_GRID_SPACING;
-  mainFrame.paddingRight = MAIN_FRAME_GRID_SPACING;
-  mainFrame.paddingTop = MAIN_FRAME_GRID_SPACING;
-  mainFrame.paddingBottom = MAIN_FRAME_GRID_SPACING;
-  mainFrame.layoutWrap = "WRAP"; 
-  mainFrame.clipsContent = false; // Default to false
+  mainFrame.paddingRight = MAIN_FRAME_GRID_SPACING; // Restore this
+  mainFrame.paddingTop = MAIN_FRAME_GRID_SPACING;    // Restore this
+  mainFrame.paddingBottom = MAIN_FRAME_GRID_SPACING; // Restore this
+  mainFrame.clipsContent = false;                    // Restore this
 
+  const totalMainFrameWidth = mainFrameInternalContentWidth + mainFrame.paddingLeft + mainFrame.paddingRight;
+  mainFrame.resize(totalMainFrameWidth, 0); // Set fixed total width, height is auto
+
+  mainFrame.primaryAxisSizingMode = "FIXED"; // Width is fixed
+  mainFrame.counterAxisSizingMode = "FIXED"; // Height is now fixed (from previous step)
+  
   const uniqueQueries = Array.from(allQueries);
   
   for (let i = 0; i < uniqueQueries.length; i++) {
@@ -1018,11 +1025,19 @@ async function processCSVModified(
     });
     
     const query = uniqueQueries[i];
-    
+
     // Create TOP-LEVEL CARD container
     const card = figma.createFrame();
     card.name = `Comparison Card: ${query}`;
     card.resize(COMPARISON_CARD_WIDTH, COMPARISON_CARD_HEIGHT); 
+
+    // Calculate grid position for the card
+    const colIndex = i % numCardsPerRow; // numCardsPerRow is defined above for mainFrame sizing
+    const rowIndex = Math.floor(i / numCardsPerRow);
+
+    card.x = mainFrame.paddingLeft + colIndex * (COMPARISON_CARD_WIDTH + MAIN_FRAME_GRID_SPACING);
+    card.y = mainFrame.paddingTop + rowIndex * (COMPARISON_CARD_HEIGHT + MAIN_FRAME_GRID_SPACING);
+    
     card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
     card.cornerRadius = 8;
     card.effects = [
@@ -1035,11 +1050,33 @@ async function processCSVModified(
         blendMode: 'NORMAL'
       }
     ];
+
+    // Autolayout for the card itself (Top-Level Card Container)
+    card.layoutMode = "VERTICAL"; // Ensures children stack vertically
+    // layoutWrap is not applicable to vertical layout, so ensure it's not set or is commented out.
+    card.primaryAxisAlignItems = "MIN"; // Items align to the top of the card
+    card.counterAxisAlignItems = "MIN"; // Corrected: Children will use layoutAlign = STRETCH to fill width
+    card.itemSpacing = VERTICAL_SPACING_IN_CARD; // Vertical spacing between contentRowFrame and footer
+    card.paddingTop = CARD_INTERNAL_PADDING;
+    card.paddingBottom = CARD_INTERNAL_PADDING;
     card.paddingLeft = CARD_INTERNAL_PADDING;
     card.paddingRight = CARD_INTERNAL_PADDING;
-    card.clipsContent = false; // Default to false
+    card.clipsContent = false; 
 
-    // 1. SCREENSHOTS ROW (Horizontal Autolayout)
+    // Create a new HORIZONTAL content row to hold screenshots and text stack side-by-side
+    const contentRowFrame = figma.createFrame();
+    contentRowFrame.name = "Content Row (Screenshots + Text)";
+    contentRowFrame.layoutMode = "HORIZONTAL";
+    // Calculate the width based on the parent card's content box width
+    const cardContentWidth = COMPARISON_CARD_WIDTH - card.paddingLeft - card.paddingRight;
+    contentRowFrame.resize(cardContentWidth, 0); // Width is fixed, height is initially 0, will be set by AUTO mode below
+    contentRowFrame.primaryAxisSizingMode = "FIXED"; // Explicitly set width
+    contentRowFrame.counterAxisSizingMode = "AUTO"; // Height based on its children
+    contentRowFrame.itemSpacing = CARD_INTERNAL_PADDING; 
+    contentRowFrame.layoutAlign = "STRETCH"; 
+    contentRowFrame.clipsContent = false;
+
+    // 1. SCREENSHOTS ROW (Horizontal Autolayout) - now added to contentRowFrame
     const screenshotsRowFrame = figma.createFrame();
     screenshotsRowFrame.name = "Screenshots Row";
     screenshotsRowFrame.layoutMode = "HORIZONTAL";
@@ -1102,10 +1139,19 @@ async function processCSVModified(
     competitorDisplayGroup.appendChild(competitorSection);
     screenshotsRowFrame.appendChild(competitorDisplayGroup);
     
-    card.appendChild(screenshotsRowFrame);
+    contentRowFrame.appendChild(screenshotsRowFrame);
 
+    // Create a new vertical stack for all text-based info and additional data - now added to contentRowFrame
+    const textAndDataStackFrame = figma.createFrame();
+    textAndDataStackFrame.name = "Text and Data Stack";
+    textAndDataStackFrame.layoutMode = "VERTICAL";
+    textAndDataStackFrame.primaryAxisSizingMode = "AUTO"; // Height based on content
+    textAndDataStackFrame.counterAxisSizingMode = "AUTO"; // Corrected from "FILL"
+    textAndDataStackFrame.itemSpacing = 16; // Spacing between text elements in this stack
+    textAndDataStackFrame.layoutAlign = "MIN"; // Vertical alignment: Align to top of contentRowFrame
+    textAndDataStackFrame.layoutGrow = 1; // Grow to fill horizontal space in contentRowFrame // suspect this is not needed
 
-    // 2. SEARCH INFO TEXT (Label + Value)
+    // 2. SEARCH INFO TEXT (Label + Value) - now added to textAndDataStackFrame
     const searchQueryLabelNode = figma.createText();
     searchQueryLabelNode.name = "Search Query Label";
     searchQueryLabelNode.fontName = { family: "Inter", style: "Bold" };
@@ -1113,7 +1159,7 @@ async function processCSVModified(
     searchQueryLabelNode.characters = "Search Query:";
     searchQueryLabelNode.layoutAlign = "STRETCH"; 
     searchQueryLabelNode.textAlignHorizontal = "LEFT";
-    card.appendChild(searchQueryLabelNode);
+    textAndDataStackFrame.appendChild(searchQueryLabelNode);
 
     const searchQueryValueNode = figma.createText();
     searchQueryValueNode.name = "Search Query Value";
@@ -1122,9 +1168,9 @@ async function processCSVModified(
     searchQueryValueNode.characters = query;
     searchQueryValueNode.layoutAlign = "STRETCH";
     searchQueryValueNode.textAlignHorizontal = "LEFT";
-    card.appendChild(searchQueryValueNode);
+    textAndDataStackFrame.appendChild(searchQueryValueNode);
     
-    // 3. ADDITIONAL DATA TEXT (Container with Label + Values)
+    // 3. ADDITIONAL DATA TEXT (Container with Label + Values) - now added to textAndDataStackFrame
     if (additionalColumns.length > 0) {
       let matchingDataRow: string[] | undefined;
       for (const row of dataRows) {
@@ -1175,11 +1221,16 @@ async function processCSVModified(
           additionalDataValuesNode.textAlignHorizontal = "LEFT";
           additionalDataContainer.appendChild(additionalDataValuesNode);
         }
-        card.appendChild(additionalDataContainer);
+        textAndDataStackFrame.appendChild(additionalDataContainer);
       }
     }
     
-    // 4. FOOTER (Meta Info)
+    contentRowFrame.appendChild(textAndDataStackFrame);
+
+    // Add the new content row (screenshots + text stack) to the main card
+    card.appendChild(contentRowFrame);
+
+    // 4. FOOTER (Meta Info) - a direct child of card, after the contentRowFrame
     const metaInfoNode = figma.createText();
     metaInfoNode.name = "Footer Meta Info";
     metaInfoNode.fontName = { family: "Inter", style: "Regular" };
@@ -1189,18 +1240,25 @@ async function processCSVModified(
     metaInfoNode.layoutAlign = "STRETCH";
     metaInfoNode.textAlignHorizontal = "LEFT"; 
     card.appendChild(metaInfoNode);
-    
-    mainFrame.appendChild(card);
+
+    mainFrame.appendChild(card); // Append card directly again
   }
   
-  // Adjust mainFrame size if it's not using autolayout for its primary axis (e.g. if it's HORIZONTAL with WRAP)
-  // If mainFrame is HORIZONTAL and WRAP, its height might need to be calculated.
-  // For simplicity, if it's just one row of cards, its height will be auto. If it wraps, it becomes more complex.
-  // Current mainFrame setup uses AUTO sizing modes, so it should adjust.
+  // Recalculate mainFrame height to include vertical spacing for rows
+  const totalRows = Math.ceil(uniqueQueries.length / numCardsPerRow);
+
+  const heightForAllCards = totalRows * COMPARISON_CARD_HEIGHT;
+  const heightForAllVerticalGaps = Math.max(0, totalRows - 1) * MAIN_FRAME_GRID_SPACING;
+  const mainFrameInternalContentHeight = heightForAllCards + heightForAllVerticalGaps;
+  
+  const totalMainFrameHeight = mainFrameInternalContentHeight + mainFrame.paddingTop + mainFrame.paddingBottom;
+
+  // Get current width from previous calculation
+  const currentMainFrameWidth = mainFrame.width;
+  mainFrame.resize(currentMainFrameWidth, totalMainFrameHeight);
+  mainFrame.counterAxisSizingMode = "FIXED"; // Height is now fixed
 
   figma.currentPage.appendChild(mainFrame);
-  figma.currentPage.selection = [mainFrame];
-  figma.viewport.scrollAndZoomIntoView([mainFrame]);
   
   figma.notify('Screenshot comparisons imported successfully with new layout!');
   figma.closePlugin();
