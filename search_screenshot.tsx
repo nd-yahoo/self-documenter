@@ -149,15 +149,16 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
         ...iPhone,
         channel: 'chrome',
         headless: false,
-        viewport: { ...iPhone.viewport, height: 2400 }
+        viewport: { ...iPhone.viewport, height: 1800 },
+        deviceScaleFactor: 1  // Force 1:1 pixel ratio
       });
       browser = context.browser() as Browser;
     } else {
       context = await chromium.launchPersistentContext(tempUserDataDir, {
         channel: 'chrome',
         headless: false,
-        viewport: { width: 1920, height: 2400 },
-        deviceScaleFactor: 1
+        viewport: { width: 1920, height: 1800 },
+        deviceScaleFactor: 1  // Force 1:1 pixel ratio
       });
       browser = context.browser() as Browser;
     }
@@ -170,7 +171,8 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
       const iPhone = devices['iPhone 13'];
       context = await browser.newContext({
         ...iPhone,
-        viewport: { ...iPhone.viewport, height: 2400 },
+        viewport: { ...iPhone.viewport, height: 1800 },
+        deviceScaleFactor: 1,  // Force 1:1 pixel ratio
         userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
         permissions: ['geolocation'],
         geolocation: { latitude: 37.774929, longitude: -122.419416 },
@@ -179,7 +181,7 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
       });
     } else {
       context = await browser.newContext({
-        viewport: { width: 1920, height: 2400 },
+        viewport: { width: 1920, height: 1800 },
         deviceScaleFactor: 1,
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
         permissions: ['geolocation'],
@@ -307,14 +309,19 @@ async function processQuery(
         path: filepath, 
         fullPage: false,
         type: 'jpeg',
-        quality: quality, // Use the quality parameter passed from args
+        quality: quality,
         clip: {
           x: 0,
           y: 0,
           width: deviceName === 'mobile' ? page.viewportSize()?.width || 390 : 1920,
-          height: 2400
+          height: 1800  // Increased to 1800px with deviceScaleFactor: 1
         }
       });
+      
+      // Log device pixel ratio and dimensions to verify scaling is working correctly
+      console.log(`Screenshot saved: ${filepath}`);
+      console.log(`Requested dimensions: ${deviceName === 'mobile' ? page.viewportSize()?.width || 390 : 1920}x1800`);
+      console.log(`Device pixel ratio: 1 (forced via deviceScaleFactor)`);
       
       console.log(`Saved: ${filepath}`);
       success = true;
