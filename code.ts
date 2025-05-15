@@ -1,6 +1,9 @@
 // This file holds the main code for the CSV to Screenshots Figma plugin
 // The plugin imports a CSV file, takes a query column, runs screenshots, and embeds them in Figma
 
+// Import utility classes
+import { RateLimiter, MemoryManager, CsvUtils } from './src/utils';
+
 // Types for our CSV data
 interface QueryColumn {
   index: number;
@@ -47,140 +50,12 @@ const TITLE_FONT_SIZE = 24;
 // Figma image size constraints
 const MAX_IMAGE_SIZE = 2097152; // 2MB in bytes (Figma limit)
 const MAX_IMAGE_DIMENSION = 4096; // Maximum dimension for Figma images
+const SAFE_IMAGE_DIMENSION = 3800; // Target a bit lower to be safe
 
-// Rate limiting for Figma API (max 5 requests per second)
-class RateLimiter {
-  private queue: Array<() => Promise<any>> = [];
-  private processing = false;
-  private lastRequestTime = 0;
-  private requestsInLastSecond = 0;
-  private readonly maxRequestsPerSecond = 5;
+// Create a global rate limiter instance for Figma API (max 5 requests per second)
+const figmaApiLimiter = new RateLimiter(5);
 
-  async add<T>(fn: () => Promise<T>): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await fn();
-          resolve(result);
-          return result;
-        } catch (err) {
-          reject(err);
-          throw err;
-        }
-      });
-
-      if (!this.processing) {
-        this.processQueue();
-      }
-    });
-  }
-
-  private async processQueue() {
-    if (this.queue.length === 0) {
-      this.processing = false;
-      return;
-    }
-
-    this.processing = true;
-    
-    // Rate limiting logic
-    const now = Date.now();
-    if (now - this.lastRequestTime < 1000) {
-      // Still within the same second
-      this.requestsInLastSecond++;
-      if (this.requestsInLastSecond >= this.maxRequestsPerSecond) {
-        // Wait until the next second
-        const waitTime = 1000 - (now - this.lastRequestTime);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        this.lastRequestTime = Date.now();
-        this.requestsInLastSecond = 0;
-      }
-    } else {
-      // New second started
-      this.lastRequestTime = now;
-      this.requestsInLastSecond = 1;
-    }
-
-    const fn = this.queue.shift();
-    if (fn) {
-      try {
-        await fn();
-      } catch (err) {
-        console.error("Error processing queue item:", err);
-      }
-    }
-
-    // Process next item
-    this.processQueue();
-  }
-}
-
-// Create a global rate limiter instance
-const figmaApiLimiter = new RateLimiter();
-
-// Memory management utilities
-class MemoryManager {
-  private imageCache: Map<string, { hash: string, lastUsed: number }> = new Map();
-  private readonly maxCacheSize = 50; // Maximum number of image references to keep in memory
-  private readonly cacheTTL = 60000; // Time in ms to keep unused images in cache (1 minute)
-  
-  // Add an image to the cache
-  cacheImage(imageId: string, imageHash: string): void {
-    this.imageCache.set(imageId, {
-      hash: imageHash,
-      lastUsed: Date.now()
-    });
-    
-    // Clean up old entries if we exceed the cache size
-    if (this.imageCache.size > this.maxCacheSize) {
-      this.cleanCache();
-    }
-  }
-  
-  // Get an image from the cache
-  getImageHash(imageId: string): string | null {
-    const entry = this.imageCache.get(imageId);
-    if (!entry) return null;
-    
-    // Update the last used timestamp
-    entry.lastUsed = Date.now();
-    return entry.hash;
-  }
-  
-  // Clean up the cache
-  cleanCache(): void {
-    const now = Date.now();
-    
-    // First, remove entries that exceed the TTL
-    for (const [id, entry] of this.imageCache.entries()) {
-      if (now - entry.lastUsed > this.cacheTTL) {
-        this.imageCache.delete(id);
-      }
-    }
-    
-    // If we still have too many entries, remove the oldest ones
-    if (this.imageCache.size > this.maxCacheSize) {
-      const entries = Array.from(this.imageCache.entries())
-        .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-      
-      // Remove the oldest entries
-      const entriesToRemove = entries.slice(0, entries.length - this.maxCacheSize);
-      for (const [id] of entriesToRemove) {
-        this.imageCache.delete(id);
-      }
-    }
-  }
-  
-  // Get memory usage statistics
-  getStats(): { cacheSize: number, entryCount: number } {
-    return {
-      cacheSize: this.imageCache.size,
-      entryCount: this.imageCache.size
-    };
-  }
-}
-
-// Create a global memory manager
+// Create a global memory manager with defaults
 const memoryManager = new MemoryManager();
 
 // Helper function to create an image from bytes with memory management
@@ -224,23 +99,56 @@ async function resizeImageBytes(imageBytes: Uint8Array, filename: string): Promi
       img.onload = () => {
         URL.revokeObjectURL(url);
         
-        // Check if resize is needed based on dimensions
-        const needsResize = img.width > MAX_IMAGE_DIMENSION || img.height > MAX_IMAGE_DIMENSION || imageBytes.length > MAX_IMAGE_SIZE;
+        console.log(`Processing image: ${filename}, dimensions: ${img.width}x${img.height}, size: ${imageBytes.length / 1024} KB`);
+        
+        // Always check dimensions against our safe limit
+        const needsResize = img.width > SAFE_IMAGE_DIMENSION || img.height > SAFE_IMAGE_DIMENSION || imageBytes.length > MAX_IMAGE_SIZE;
         
         if (!needsResize) {
+          console.log(`Image ${filename} is within safe limits, no resize needed`);
           resolve(imageBytes);
           return;
         }
         
+        console.log(`Resizing image ${filename}: Original dimensions ${img.width}x${img.height}`);
+        
         // Calculate new dimensions while maintaining aspect ratio
         let newWidth, newHeight;
+        const aspectRatio = img.width / img.height;
+        
         if (img.width > img.height) {
-          newWidth = Math.min(img.width, MAX_IMAGE_DIMENSION);
-          newHeight = Math.round((newWidth / img.width) * img.height);
+          // Landscape orientation
+          if (img.width > SAFE_IMAGE_DIMENSION) {
+            newWidth = SAFE_IMAGE_DIMENSION;
+            newHeight = Math.round(newWidth / aspectRatio);
+          } else {
+            newWidth = img.width;
+            newHeight = img.height;
+          }
+          
+          // Double-check height isn't too large
+          if (newHeight > SAFE_IMAGE_DIMENSION) {
+            newHeight = SAFE_IMAGE_DIMENSION;
+            newWidth = Math.round(newHeight * aspectRatio);
+          }
         } else {
-          newHeight = Math.min(img.height, MAX_IMAGE_DIMENSION);
-          newWidth = Math.round((newHeight / img.height) * img.width);
+          // Portrait orientation
+          if (img.height > SAFE_IMAGE_DIMENSION) {
+            newHeight = SAFE_IMAGE_DIMENSION;
+            newWidth = Math.round(newHeight * aspectRatio);
+          } else {
+            newWidth = img.width;
+            newHeight = img.height;
+          }
+          
+          // Double-check width isn't too large
+          if (newWidth > SAFE_IMAGE_DIMENSION) {
+            newWidth = SAFE_IMAGE_DIMENSION;
+            newHeight = Math.round(newWidth / aspectRatio);
+          }
         }
+        
+        console.log(`Resizing image ${filename}: New dimensions ${newWidth}x${newHeight}`);
         
         // Create canvas for resizing
         const canvas = document.createElement('canvas');
@@ -270,7 +178,9 @@ async function resizeImageBytes(imageBytes: Uint8Array, filename: string): Promi
           const reader = new FileReader();
           reader.onload = function() {
             const buffer = reader.result as ArrayBuffer;
-            resolve(new Uint8Array(buffer));
+            const resizedBytes = new Uint8Array(buffer);
+            console.log(`Resized image ${filename}: New size ${resizedBytes.length / 1024} KB`);
+            resolve(resizedBytes);
           };
           reader.onerror = function() {
             console.error(`Error reading resized blob for ${filename}`);
@@ -297,23 +207,46 @@ async function resizeImageBytes(imageBytes: Uint8Array, filename: string): Promi
 // Process image before sending to Figma
 async function processFigmaImage(imageData: ScreenshotData): Promise<ScreenshotData> {
   try {
-    // Check if the image data is too large
-    if (imageData.imageBytes.length > MAX_IMAGE_SIZE) {
-      console.log(`Image too large (${(imageData.imageBytes.length / 1024 / 1024).toFixed(2)}MB), resizing: ${imageData.filename}`);
+    // Log information about the image
+    console.log(`Processing image ${imageData.filename} for Figma (${imageData.imageBytes.length / 1024} KB)`);
+    
+    // Always resize images to ensure they meet Figma's requirements
+    const resizedBytes = await resizeImageBytes(imageData.imageBytes, imageData.filename);
+    
+    // Verify final dimensions to make sure we're under limits
+    const verifyDimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
+      const blob = new Blob([resizedBytes], { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
       
-      // Resize the image
-      const resizedBytes = await resizeImageBytes(imageData.imageBytes, imageData.filename);
-      
-      // Return resized image data
-      return {
-        ...imageData,
-        imageBytes: resizedBytes,
-        filename: imageData.filename + " (resized)"
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({ width: img.width, height: img.height });
       };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to verify dimensions"));
+      };
+      
+      img.src = url;
+    }).catch(() => ({ width: 0, height: 0 }));
+    
+    // Log final dimensions
+    console.log(`Final image dimensions for ${imageData.filename}: ${verifyDimensions.width}x${verifyDimensions.height}`);
+    
+    // Check if dimensions are still too large
+    if (verifyDimensions.width > MAX_IMAGE_DIMENSION || verifyDimensions.height > MAX_IMAGE_DIMENSION) {
+      console.error(`WARNING: Image ${imageData.filename} still exceeds Figma's maximum dimensions after resizing`);
     }
     
-    // Image is within size limits, return as is
-    return imageData;
+    // Return processed image data
+    return {
+      ...imageData,
+      imageBytes: resizedBytes,
+      filename: imageData.imageBytes.length !== resizedBytes.length ? 
+               imageData.filename + " (resized)" : imageData.filename
+    };
   } catch (err: unknown) {
     console.error(`Error processing image ${imageData.filename}: ${err instanceof Error ? err.message : String(err)}`);
     throw err;
@@ -388,9 +321,8 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       textNode.fontName = { family: "Inter", style: "Regular" };
       textNode.fontSize = 10;
       
-      // Create a simple representation of the data with manual CSV parsing
-      const lines = csvData.split('\n').filter(line => line.trim() !== '');
-      const headers = lines[0].split(',');
+      // Create a simple representation of the data with CsvUtils
+      const { headers, rows } = CsvUtils.parseSimple(csvData);
       const queryColIndex = queryColumn.index;
       
       // Create debug text
@@ -400,13 +332,13 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
         `Query column name: ${queryColumn.name}\n` +
         `Headers: ${JSON.stringify(headers)}\n` +
         `Header at queryColumn.index: "${queryColIndex < headers.length ? headers[queryColIndex] : 'OUT OF BOUNDS'}"\n\n` +
-        `First 3 data rows (${lines.length - 1} total rows):\n`;
+        `First 3 data rows (${rows.length} total rows):\n`;
       
       // Add the first few data rows for reference
-      for (let i = 1; i < Math.min(4, lines.length); i++) {
-        const cells = lines[i].split(',');
-        const queryVal = queryColIndex < cells.length ? cells[queryColIndex] : 'OUT OF BOUNDS';
-        textNode.characters += `Row ${i}: Query value = "${queryVal}"\n`;
+      for (let i = 0; i < Math.min(3, rows.length); i++) {
+        const row = rows[i];
+        const queryVal = queryColIndex < row.length ? row[queryColIndex] : 'OUT OF BOUNDS';
+        textNode.characters += `Row ${i+1}: Query value = "${queryVal}"\n`;
       }
       
       // Add screenshot info
@@ -457,71 +389,6 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   }
 };
 
-// Parse CSV data
-function parseCSV(csvData: string): string[][] {
-  // Try the simplest approach first - this often works when there are no complex fields
-  try {
-    // Split by lines and filter out empties
-    const lines = csvData.split('\n').filter(line => line.trim() !== '');
-    
-    if (lines.length < 2) {
-      console.error("Not enough lines in CSV data - need at least headers and one data row");
-      return [];
-    }
-    
-    // Use a very simple parsing approach first
-    const simpleResult = lines.map(line => {
-      // Just split by commas - this works for simple CSVs
-      return line.split(',').map(cell => cell.trim());
-    });
-    
-    return simpleResult;
-  } catch (err) {
-    console.error("Simple CSV parsing failed, falling back to more robust method:", err);
-    
-    // Fallback to a more sophisticated approach
-    try {
-      const lines = csvData.split('\n').filter(line => line.trim() !== '');
-      
-      if (lines.length < 2) {
-        console.error("Not enough lines in CSV data");
-        return [];
-      }
-      
-      const parseRow = (row: string): string[] => {
-        const cells: string[] = [];
-        let currentCell = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            cells.push(currentCell.trim());
-            currentCell = '';
-          } else {
-            currentCell += char;
-          }
-        }
-        
-        cells.push(currentCell.trim());
-        return cells;
-      };
-      
-      return lines.map(line => parseRow(line));
-    } catch (err2) {
-      console.error("Both CSV parsing methods failed:", err2);
-      
-      // Last resort fallback
-      return csvData.split('\n')
-        .filter(line => line.trim() !== '')
-        .map(line => line.split(','));
-    }
-  }
-}
-
 // Main processing function
 async function processCSV(
   csvData: string,
@@ -541,10 +408,11 @@ async function processCSV(
     });
   };
   
-  // Process the CSV data with better error handling
-  if (!csvData || csvData.trim() === '') {
-    sendDebugInfo("ERROR: Empty CSV data received");
-    figma.notify('Empty CSV data received');
+  // Validate the CSV data
+  const validation = CsvUtils.validateCsvData(csvData);
+  if (!validation.isValid) {
+    sendDebugInfo(`ERROR: ${validation.error}`);
+    figma.notify(validation.error || 'Invalid CSV data');
     figma.closePlugin();
     return;
   }
@@ -552,7 +420,8 @@ async function processCSV(
   sendDebugInfo(`CSV data received: ${csvData.length} characters`);
   sendDebugInfo(`First 50 chars: ${csvData.substring(0, 50)}`);
   
-  const parsedData = parseCSV(csvData);
+  // Parse CSV data
+  const parsedData = CsvUtils.parseCSV(csvData);
   
   sendDebugInfo(`Parsed data rows: ${parsedData.length}`);
   if (parsedData.length > 0) {
@@ -578,25 +447,9 @@ async function processCSV(
   sendDebugInfo(`Query column index: ${queryColumn.index}`);
   sendDebugInfo(`Query column name: ${queryColumn.name}`);
   
-  // Filter rows with detailed debugging
-  const dataRows = [];
-  for (let i = 1; i < parsedData.length; i++) {
-    const row = parsedData[i];
-    sendDebugInfo(`Checking row ${i}: ${JSON.stringify(row)}`);
-    
-    if (row.length <= queryColumn.index) {
-      sendDebugInfo(`Row ${i} skipped: Not enough columns (has ${row.length}, needs >${queryColumn.index})`);
-      continue;
-    }
-    
-    if (row[queryColumn.index].trim() === '') {
-      sendDebugInfo(`Row ${i} skipped: Empty query column value`);
-      continue;
-    }
-    
-    sendDebugInfo(`Row ${i} accepted: Query value = "${row[queryColumn.index]}"`);
-    dataRows.push(row);
-  }
+  // Filter rows using CsvUtils
+  const filteredData = CsvUtils.filterRows(parsedData, queryColumn.index);
+  const dataRows = filteredData.slice(1); // Skip header row
   
   sendDebugInfo(`Total accepted data rows: ${dataRows.length}`);
   
@@ -798,17 +651,13 @@ async function processCSVModified(
   competitorScreenshots: ScreenshotData[],
   competitorEngine: string
 ) {
-  // Parse CSV with a very simple approach
+  // Parse CSV with CsvUtils
   figma.ui.postMessage({ type: 'update-progress', message: 'Parsing CSV data...' });
   
-  // Simple CSV parsing without validation errors
-  const lines = csvData.split('\n').filter(line => line.trim() !== '');
-  const headers = lines[0].split(',');
+  // Use the simple parsing function which returns headers and rows directly
+  const { headers, rows } = CsvUtils.parseSimple(csvData);
   
-  // Create data rows directly - skip all the validation that was causing problems
-  const dataRows = lines.slice(1).map(line => line.split(','));
-  
-  figma.ui.postMessage({ type: 'update-progress', message: `Found ${dataRows.length} data rows` });
+  figma.ui.postMessage({ type: 'update-progress', message: `Found ${rows.length} data rows` });
   
   // Process and resize images before indexing
   figma.ui.postMessage({ type: 'update-progress', message: 'Processing Yahoo screenshots...' });
@@ -868,9 +717,9 @@ async function processCSVModified(
   
   // New card size for side-by-side comparison
   const COMPARISON_CARD_WIDTH = 880;
-  const COMPARISON_CARD_HEIGHT = 1040;
+  const COMPARISON_CARD_HEIGHT = 800; // Increased from 500 to accommodate taller screenshots
   const SCREENSHOT_WIDTH = 200;
-  const SCREENSHOT_HEIGHT = 872;
+  const SCREENSHOT_HEIGHT = 700; // Increased from 400 to show more of the taller screenshots
   const SCREENSHOT_SPACING = 40;
   
   // Calculate grid dimensions
@@ -972,16 +821,15 @@ async function processCSVModified(
         // Create inner container for the image
         const imageContainer = figma.createFrame();
         imageContainer.name = "Yahoo Image Container";
-        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT * 2); // Make it taller
+        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT); // Match parent size
         imageContainer.fills = [];
         imageContainer.x = 0;
         imageContainer.y = 0;
-        imageContainer.clipsContent = false; // Important: don't clip
         
-        // Apply the image as a fill
+        // Apply the image as a fill with proper scaling
         imageContainer.fills = [{
           type: 'IMAGE',
-          scaleMode: 'FIT',
+          scaleMode: 'FILL',
           imageHash: image.hash
         }];
         
@@ -1062,16 +910,15 @@ async function processCSVModified(
         // Create inner container for the image
         const imageContainer = figma.createFrame();
         imageContainer.name = `${competitorEngine} Image Container`;
-        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT * 2); // Make it taller
+        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT); // Match parent size
         imageContainer.fills = [];
         imageContainer.x = 0;
         imageContainer.y = 0;
-        imageContainer.clipsContent = false; // Important: don't clip
         
-        // Apply the image as a fill
+        // Apply the image as a fill with proper scaling
         imageContainer.fills = [{
           type: 'IMAGE',
-          scaleMode: 'FIT',
+          scaleMode: 'FILL',
           imageHash: image.hash
         }];
         
@@ -1135,7 +982,7 @@ async function processCSVModified(
     if (additionalColumns.length > 0) {
       // Find the matching data row by query
       let matchingDataRow: string[] | undefined;
-      for (const row of dataRows) {
+      for (const row of rows) {
         const rowQueryValue = queryColumn.index < row.length ? row[queryColumn.index].trim() : "";
         if (rowQueryValue.toLowerCase() === query.toLowerCase()) {
           matchingDataRow = row;

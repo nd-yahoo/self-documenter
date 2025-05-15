@@ -4,7 +4,7 @@
  * @param csvData Raw CSV string data
  * @returns Parsed 2D array of strings representing rows and columns
  */
-export function parseCSV(csvData: string): string[][] {
+function parseCSV(csvData: string): string[][] {
   // Try the simplest approach first - this often works when there are no complex fields
   try {
     // Split by lines and filter out empties
@@ -74,7 +74,7 @@ export function parseCSV(csvData: string): string[][] {
  * @param csvData Parsed CSV data as 2D array
  * @returns Object with validation results
  */
-export function validateCSV(csvData: string[][]): { 
+function validateCSV(csvData: string[][]): { 
   valid: boolean; 
   message?: string;
   headers?: string[];
@@ -99,4 +99,46 @@ export function validateCSV(csvData: string[][]): {
     headers,
     dataRows
   };
-} 
+}
+
+/**
+ * Basic CSV parsing for simple use cases
+ */
+function parseSimple(csvData: string): { headers: string[]; rows: string[][] } {
+  const parsedData = parseCSV(csvData);
+  return {
+    headers: parsedData[0],
+    rows: parsedData.slice(1)
+  };
+}
+
+/**
+ * Validate CSV data string
+ */
+function validateCsvData(csvData: string): { isValid: boolean; error?: string } {
+  try {
+    const parsed = parseCSV(csvData);
+    if (parsed.length < 2) {
+      return { isValid: false, error: 'CSV file must have headers and at least one data row' };
+    }
+    return { isValid: true };
+  } catch (err) {
+    return { isValid: false, error: `Failed to parse CSV: ${err}` };
+  }
+}
+
+/**
+ * Filter rows by query column
+ */
+function filterRows(rows: string[][], queryColumnIndex: number): string[][] {
+  return rows.filter(row => row[queryColumnIndex] && row[queryColumnIndex].trim() !== '');
+}
+
+// Export all functions
+export default {
+  parseCSV,
+  validateCSV,
+  parseSimple,
+  validateCsvData,
+  filterRows
+}; 
