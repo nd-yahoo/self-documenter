@@ -17,6 +17,8 @@ interface ScreenshotData {
   imageBytes: Uint8Array;
   filename: string;
   engine?: string;
+  originalWidth?: number;
+  originalHeight?: number;
 }
 
 interface PluginMessage {
@@ -788,6 +790,118 @@ async function processCSV(
   figma.closePlugin();
 }
 
+// Helper function to create a screenshot section (Yahoo or competitor)
+async function createScreenshotSection(
+  query: string,
+  engineName: string, 
+  screenshotsByQuery: Map<string, ScreenshotData>,
+  x: number, 
+  y: number,
+  width: number, // Target final visual width (e.g., 200)
+  height: number, // Target final visual height (e.g., 872)
+  padding: number // This was CARD_PADDING, likely not used directly for section's internal styling now
+): Promise<FrameNode> {
+  const BORDER_THICKNESS = 2;
+  const BORDER_COLOR = { r: 0.5, g: 0.5, b: 0.5 }; // #808080
+
+  // Calculate the section's own dimensions so that with an OUTSIDE border,
+  // the total visual dimensions match the input 'width' and 'height'.
+  const sectionActualWidth = width - 2 * BORDER_THICKNESS; // e.g., 200 - 4 = 196
+  const sectionActualHeight = height - 2 * BORDER_THICKNESS; // e.g., 872 - 4 = 868
+
+  // Create the main section frame
+  const section = figma.createFrame();
+  section.name = `${engineName} Screenshot Section`;
+  section.resize(sectionActualWidth, sectionActualHeight);
+  section.x = x;
+  section.y = y;
+  
+  section.clipsContent = true;
+
+  // Autolayout setup
+  section.layoutMode = "VERTICAL";
+  section.primaryAxisSizingMode = "FIXED";   // Explicitly fixed height
+  section.counterAxisSizingMode = "FIXED";  // Explicitly fixed width
+  section.primaryAxisAlignItems = "MIN";    // Align children to the top
+  section.counterAxisAlignItems = "CENTER"; // Corrected from STRETCH. Children will stretch themselves.
+  
+  // Padding inside the section frame. Since title is removed, top padding can be 0.
+  section.paddingTop = 0; 
+  section.paddingLeft = 0;
+  section.paddingRight = 0;
+  section.paddingBottom = 0; 
+  section.itemSpacing = 0;   // No spacing needed for a single child (image or placeholder)
+
+  // Corner radius
+  section.topLeftRadius = 16;
+  section.topRightRadius = 16;
+  section.bottomLeftRadius = 0; 
+  section.bottomRightRadius = 0;
+
+  // Border
+  section.strokes = [{ type: 'SOLID', color: BORDER_COLOR }];
+  section.strokeWeight = BORDER_THICKNESS;
+  section.strokeAlign = "OUTSIDE"; // Border is drawn outside the 196x868 box
+
+  const screenshot = screenshotsByQuery.get(query.toLowerCase().trim());
+  
+  if (screenshot) {
+    section.fills = []; // Clear section background if image is present
+
+    const imageContainer = figma.createRectangle();
+    imageContainer.name = `${engineName} Image Container`;
+    imageContainer.layoutAlign = "STRETCH"; 
+    imageContainer.layoutGrow = 1; // Take remaining vertical space
+    
+    try {
+      const image = figma.createImage(screenshot.imageBytes);
+      if (screenshot.originalWidth && screenshot.originalWidth > 0) {
+        const W_orig = screenshot.originalWidth;
+        // Image content width is the actual width of the imageContainer.
+        // imageContainer's width will be sectionActualWidth - section.paddingLeft - section.paddingRight
+        const imageRenderWidth = sectionActualWidth - section.paddingLeft - section.paddingRight;
+        const scaleFactor = imageRenderWidth / W_orig;
+
+        imageContainer.fills = [{
+          type: 'IMAGE',
+          scaleMode: 'CROP',
+          imageHash: image.hash,
+          imageTransform: [[scaleFactor, 0, 0], [0, scaleFactor, 0]]
+        }];
+      } else {
+        console.warn(`Original width not available for ${screenshot.filename}. Using 'FILL' mode.`);
+        imageContainer.fills = [{ type: 'IMAGE', scaleMode: 'FILL', imageHash: image.hash }];
+      }
+    } catch (err: any) {
+      console.error(`Error creating or applying image for "${query}":`, err);
+      // In case of error creating image fill, make imageContainer show an error color.
+      imageContainer.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.7, b: 0.7 } }]; // Light red for error
+    }
+    section.appendChild(imageContainer);
+  } else {
+    // No matching screenshot, setup placeholder appearance for section
+    section.fills = [{ type: 'SOLID', color: { r: 0.92, g: 0.92, b: 0.92 } }]; // Background for placeholder
+
+    const noImageText = figma.createText();
+    noImageText.name = "Placeholder Text";
+    try {
+        await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+        noImageText.fontName = { family: "Inter", style: "Regular" };
+    } catch (e) { console.warn("Failed to load font for placeholder", e); }
+    noImageText.characters = `No ${engineName} screenshot available for query: "${query}"`;
+    noImageText.fontSize = 14;
+    noImageText.textAlignHorizontal = 'CENTER';
+    noImageText.textAlignVertical = 'CENTER';
+    noImageText.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
+    
+    noImageText.layoutAlign = 'STRETCH'; // Ensure placeholder also stretches
+    noImageText.layoutGrow = 1; // To fill the space
+    section.appendChild(noImageText);
+  }
+  
+  return section;
+}
+
 // Modified process function that creates side-by-side comparison cards
 async function processCSVModified(
   csvData: string,
@@ -803,7 +917,7 @@ async function processCSVModified(
   
   // Simple CSV parsing without validation errors
   const lines = csvData.split('\n').filter(line => line.trim() !== '');
-  const headers = lines[0].split(',');
+  // const headers = lines[0].split(','); // Headers not directly used in this simplified version
   
   // Create data rows directly - skip all the validation that was causing problems
   const dataRows = lines.slice(1).map(line => line.split(','));
@@ -863,35 +977,40 @@ async function processCSVModified(
       type: 'update-progress', 
       message: 'Warning: Some fonts failed to load, text may not display correctly' 
     });
-    // Continue execution - we'll try to use system fonts as fallback
   }
   
-  // New card size for side-by-side comparison
+  // Card and screenshot dimensions
   const COMPARISON_CARD_WIDTH = 880;
-  const COMPARISON_CARD_HEIGHT = 1040;
-  const SCREENSHOT_WIDTH = 200;
-  const SCREENSHOT_HEIGHT = 872;
-  const SCREENSHOT_SPACING = 40;
-  
+  const COMPARISON_CARD_HEIGHT = 1040; // This might be overridden by autolayout height if not fixed
+  const SCREENSHOT_CONTAINER_WIDTH = 200; // Visual width of each screenshot component
+  const SCREENSHOT_CONTAINER_HEIGHT = 906; // Visual height of each screenshot component
+  const SCREENSHOT_SPACING = 40; // Horizontal spacing between screenshots
+  const CARD_INTERNAL_PADDING = 40; // Padding inside the main card
+  const VERTICAL_SPACING_IN_CARD = 20; // Spacing between vertical elements in the card
+
   // Calculate grid dimensions
   const totalCards = allQueries.size;
-  const CARDS_PER_ROW = 4; // Display 4 comparison cards per row
-  const totalRows = Math.ceil(totalCards / CARDS_PER_ROW);
-  const gridWidth = CARDS_PER_ROW * COMPARISON_CARD_WIDTH + (CARDS_PER_ROW - 1) * GRID_SPACING;
-  const gridHeight = totalRows * COMPARISON_CARD_HEIGHT + (totalRows - 1) * GRID_SPACING;
-  
+  // const CARDS_PER_ROW = 4; // Display 4 comparison cards per row (This might be adjusted based on card width)
+  const MAIN_FRAME_GRID_SPACING = 40;
+
+
   // Create frame to hold all cards
   const mainFrame = figma.createFrame();
   mainFrame.name = "Search Engine Comparisons";
-  mainFrame.resize(gridWidth, gridHeight);
   mainFrame.fills = [{ type: 'SOLID', color: { r: 0.95, g: 0.95, b: 0.95 } }];
-  mainFrame.itemSpacing = GRID_SPACING;
-  mainFrame.layoutMode = "NONE"; // Use absolute positioning for precise control
-  
-  // Create an array of unique queries to iterate through
+  mainFrame.itemSpacing = MAIN_FRAME_GRID_SPACING;
+  mainFrame.layoutMode = "HORIZONTAL"; 
+  mainFrame.primaryAxisSizingMode = "AUTO";
+  mainFrame.counterAxisSizingMode = "AUTO";
+  mainFrame.paddingLeft = MAIN_FRAME_GRID_SPACING;
+  mainFrame.paddingRight = MAIN_FRAME_GRID_SPACING;
+  mainFrame.paddingTop = MAIN_FRAME_GRID_SPACING;
+  mainFrame.paddingBottom = MAIN_FRAME_GRID_SPACING;
+  mainFrame.layoutWrap = "WRAP"; 
+  mainFrame.clipsContent = false; // Default to false
+
   const uniqueQueries = Array.from(allQueries);
   
-  // For each unique query, create a comparison card
   for (let i = 0; i < uniqueQueries.length; i++) {
     figma.ui.postMessage({ 
       type: 'update-progress', 
@@ -900,18 +1019,10 @@ async function processCSVModified(
     
     const query = uniqueQueries[i];
     
-    // Calculate grid position
-    const colIndex = i % CARDS_PER_ROW;
-    const rowIndex = Math.floor(i / CARDS_PER_ROW);
-    const xPos = colIndex * (COMPARISON_CARD_WIDTH + GRID_SPACING);
-    const yPos = rowIndex * (COMPARISON_CARD_HEIGHT + GRID_SPACING);
-    
-    // Create card container
+    // Create TOP-LEVEL CARD container
     const card = figma.createFrame();
-    card.name = `Comparison: ${query}`;
-    card.resize(COMPARISON_CARD_WIDTH, COMPARISON_CARD_HEIGHT);
-    card.x = xPos;
-    card.y = yPos;
+    card.name = `Comparison Card: ${query}`;
+    card.resize(COMPARISON_CARD_WIDTH, COMPARISON_CARD_HEIGHT); 
     card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
     card.cornerRadius = 8;
     card.effects = [
@@ -924,273 +1035,174 @@ async function processCSVModified(
         blendMode: 'NORMAL'
       }
     ];
+    card.paddingLeft = CARD_INTERNAL_PADDING;
+    card.paddingRight = CARD_INTERNAL_PADDING;
+    card.clipsContent = false; // Default to false
+
+    // 1. SCREENSHOTS ROW (Horizontal Autolayout)
+    const screenshotsRowFrame = figma.createFrame();
+    screenshotsRowFrame.name = "Screenshots Row";
+    screenshotsRowFrame.layoutMode = "HORIZONTAL";
+    screenshotsRowFrame.itemSpacing = SCREENSHOT_SPACING;
+    screenshotsRowFrame.primaryAxisAlignItems = "MIN"; 
+    screenshotsRowFrame.counterAxisAlignItems = "MIN"; 
+    screenshotsRowFrame.primaryAxisSizingMode = "AUTO"; 
+    screenshotsRowFrame.counterAxisSizingMode = "AUTO"; 
+    screenshotsRowFrame.clipsContent = false; // Default to false
+
+    // Create Yahoo Display Group (Label + Screenshot Section)
+    const yahooDisplayGroup = figma.createFrame();
+    yahooDisplayGroup.name = "Yahoo Display Group";
+    yahooDisplayGroup.layoutMode = "VERTICAL";
+    yahooDisplayGroup.itemSpacing = 8; 
+    yahooDisplayGroup.primaryAxisSizingMode = "AUTO";
+    yahooDisplayGroup.counterAxisSizingMode = "AUTO";
+    yahooDisplayGroup.counterAxisAlignItems = "CENTER";
+    yahooDisplayGroup.clipsContent = false; // Default to false
+
+    const yahooLabel = figma.createText();
+    yahooLabel.name = "Yahoo Label";
+    try { await figma.loadFontAsync({ family: "Inter", style: "Bold" }); yahooLabel.fontName = { family: "Inter", style: "Bold" }; } catch(e){}
+    yahooLabel.fontSize = 16;
+    yahooLabel.characters = "Yahoo";
+    yahooLabel.textAlignHorizontal = "CENTER";
+    yahooLabel.layoutAlign = "STRETCH"; 
+    yahooDisplayGroup.appendChild(yahooLabel);
+
+    const yahooSection = await createScreenshotSection(
+      query, "Yahoo", yahooScreenshotsByQuery,
+      0, 0, SCREENSHOT_CONTAINER_WIDTH, SCREENSHOT_CONTAINER_HEIGHT, 0 
+    );
+    yahooDisplayGroup.appendChild(yahooSection);
+    screenshotsRowFrame.appendChild(yahooDisplayGroup);
+
+    // Create Competitor Display Group (Label + Screenshot Section)
+    const competitorDisplayGroup = figma.createFrame();
+    competitorDisplayGroup.name = `${competitorEngine} Display Group`;
+    competitorDisplayGroup.layoutMode = "VERTICAL";
+    competitorDisplayGroup.itemSpacing = 8;
+    competitorDisplayGroup.primaryAxisSizingMode = "AUTO";
+    competitorDisplayGroup.counterAxisSizingMode = "AUTO";
+    competitorDisplayGroup.counterAxisAlignItems = "CENTER";
+    competitorDisplayGroup.clipsContent = false; // Default to false
+
+    const competitorLabel = figma.createText();
+    competitorLabel.name = `${competitorEngine} Label`;
+    try { await figma.loadFontAsync({ family: "Inter", style: "Bold" }); competitorLabel.fontName = { family: "Inter", style: "Bold" }; } catch(e){}
+    competitorLabel.fontSize = 16;
+    competitorLabel.characters = competitorEngine.charAt(0).toUpperCase() + competitorEngine.slice(1);
+    competitorLabel.textAlignHorizontal = "CENTER";
+    competitorLabel.layoutAlign = "STRETCH";
+    competitorDisplayGroup.appendChild(competitorLabel);
+
+    const competitorSection = await createScreenshotSection(
+      query, competitorEngine, competitorScreenshotsByQuery,
+      0, 0, SCREENSHOT_CONTAINER_WIDTH, SCREENSHOT_CONTAINER_HEIGHT, 0
+    );
+    competitorDisplayGroup.appendChild(competitorSection);
+    screenshotsRowFrame.appendChild(competitorDisplayGroup);
     
-    // Create title for the card with the query
-    const queryTitle = figma.createText();
-    queryTitle.name = "Search Query";
-    queryTitle.fontName = { family: "Inter", style: "Bold" };
-    queryTitle.fontSize = TITLE_FONT_SIZE;
-    queryTitle.characters = query;
-    queryTitle.x = CARD_PADDING;
-    queryTitle.y = CARD_PADDING;
-    queryTitle.resize(COMPARISON_CARD_WIDTH - (CARD_PADDING * 2), 30);
-    queryTitle.textAlignHorizontal = 'CENTER';
-    card.appendChild(queryTitle);
+    card.appendChild(screenshotsRowFrame);
+
+
+    // 2. SEARCH INFO TEXT (Label + Value)
+    const searchQueryLabelNode = figma.createText();
+    searchQueryLabelNode.name = "Search Query Label";
+    searchQueryLabelNode.fontName = { family: "Inter", style: "Bold" };
+    searchQueryLabelNode.fontSize = TITLE_FONT_SIZE; // 24
+    searchQueryLabelNode.characters = "Search Query:";
+    searchQueryLabelNode.layoutAlign = "STRETCH"; 
+    searchQueryLabelNode.textAlignHorizontal = "LEFT";
+    card.appendChild(searchQueryLabelNode);
+
+    const searchQueryValueNode = figma.createText();
+    searchQueryValueNode.name = "Search Query Value";
+    searchQueryValueNode.fontName = { family: "Inter", style: "Regular" }; // Query value regular
+    searchQueryValueNode.fontSize = TEXT_FONT_SIZE; // 16, or TITLE_FONT_SIZE if preferred
+    searchQueryValueNode.characters = query;
+    searchQueryValueNode.layoutAlign = "STRETCH";
+    searchQueryValueNode.textAlignHorizontal = "LEFT";
+    card.appendChild(searchQueryValueNode);
     
-    // -- YAHOO SCREENSHOT SECTION --
-    const yahooSection = figma.createFrame();
-    yahooSection.name = "Yahoo Screenshot";
-    yahooSection.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
-    yahooSection.x = CARD_PADDING;
-    yahooSection.y = CARD_PADDING + 40;
-    yahooSection.fills = [{ type: 'SOLID', color: { r: 0.96, g: 0.96, b: 0.96 } }];
-    
-    // Add Yahoo title
-    const yahooTitle = figma.createText();
-    yahooTitle.name = "Yahoo";
-    yahooTitle.fontName = { family: "Inter", style: "Bold" };
-    yahooTitle.fontSize = 16;
-    yahooTitle.characters = "Yahoo";
-    yahooTitle.x = 0;
-    yahooTitle.y = -30;
-    yahooTitle.resize(SCREENSHOT_WIDTH, 20);
-    yahooTitle.textAlignHorizontal = 'CENTER';
-    yahooSection.appendChild(yahooTitle);
-    
-    // Check if we have a matching Yahoo screenshot
-    const yahooScreenshot = yahooScreenshotsByQuery.get(query);
-    
-    if (yahooScreenshot) {
-      try {
-        // Create an image fill from the screenshot data - no need for size checking here as we've already processed it
-        const image = figma.createImage(yahooScreenshot.imageBytes);
-        
-        // Create proper container and apply image
-        yahooSection.fills = [];
-        yahooSection.clipsContent = true;
-        
-        // Create inner container for the image
-        const imageContainer = figma.createFrame();
-        imageContainer.name = "Yahoo Image Container";
-        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT * 2); // Make it taller
-        imageContainer.fills = [];
-        imageContainer.x = 0;
-        imageContainer.y = 0;
-        imageContainer.clipsContent = false; // Important: don't clip
-        
-        // Apply the image as a fill
-        imageContainer.fills = [{
-          type: 'IMAGE',
-          scaleMode: 'FIT',
-          imageHash: image.hash
-        }];
-        
-        yahooSection.appendChild(imageContainer);
-        
-        // Add small filename text at the bottom
-        const filenameText = figma.createText();
-        filenameText.characters = yahooScreenshot.filename;
-        filenameText.fontSize = 8;
-        filenameText.x = 5;
-        filenameText.y = SCREENSHOT_HEIGHT - 15;
-        filenameText.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
-        yahooSection.appendChild(filenameText);
-        
-      } catch (err: any) {
-        console.error(`Error using Yahoo screenshot for "${query}":`, err);
-        
-        // Add error message to placeholder
-        yahooSection.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.9, b: 0.9 } }];
-        
-        const placeholderText = figma.createText();
-        placeholderText.characters = `Error loading Yahoo screenshot:\n${err.message || 'Unknown error'}`;
-        placeholderText.fontSize = 12;
-        placeholderText.x = 10;
-        placeholderText.y = SCREENSHOT_HEIGHT / 2 - 20;
-        placeholderText.resize(SCREENSHOT_WIDTH - 20, 60);
-        placeholderText.textAlignHorizontal = 'CENTER';
-        placeholderText.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.2, b: 0.2 } }];
-        yahooSection.appendChild(placeholderText);
-      }
-    } else {
-      // No matching Yahoo screenshot
-      yahooSection.fills = [{ type: 'SOLID', color: { r: 0.92, g: 0.92, b: 0.92 } }];
-      
-      const noImageText = figma.createText();
-      noImageText.characters = `No Yahoo screenshot available for query:\n"${query}"`;
-      noImageText.fontSize = 14;
-      noImageText.x = 10;
-      noImageText.y = SCREENSHOT_HEIGHT / 2 - 30;
-      noImageText.resize(SCREENSHOT_WIDTH - 20, 60);
-      noImageText.textAlignHorizontal = 'CENTER';
-      noImageText.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
-      yahooSection.appendChild(noImageText);
-    }
-    
-    // -- COMPETITOR SCREENSHOT SECTION --
-    const competitorSection = figma.createFrame();
-    competitorSection.name = `${competitorEngine} Screenshot`;
-    competitorSection.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
-    competitorSection.x = CARD_PADDING + SCREENSHOT_WIDTH + SCREENSHOT_SPACING;
-    competitorSection.y = CARD_PADDING + 50;
-    competitorSection.fills = [{ type: 'SOLID', color: { r: 0.96, g: 0.96, b: 0.96 } }];
-    
-    // Add competitor title
-    const competitorTitle = figma.createText();
-    competitorTitle.name = competitorEngine;
-    competitorTitle.fontName = { family: "Inter", style: "Bold" };
-    competitorTitle.fontSize = 16;
-    competitorTitle.characters = competitorEngine.charAt(0).toUpperCase() + competitorEngine.slice(1);
-    competitorTitle.x = 0;
-    competitorTitle.y = -30;
-    competitorTitle.resize(SCREENSHOT_WIDTH, 20);
-    competitorTitle.textAlignHorizontal = 'CENTER';
-    competitorSection.appendChild(competitorTitle);
-    
-    // Check if we have a matching competitor screenshot
-    const competitorScreenshot = competitorScreenshotsByQuery.get(query);
-    
-    if (competitorScreenshot) {
-      try {
-        // Create an image fill from the screenshot data - no need for size checking here as we've already processed it
-        const image = figma.createImage(competitorScreenshot.imageBytes);
-        
-        // Create proper container and apply image
-        competitorSection.fills = [];
-        competitorSection.clipsContent = true;
-        
-        // Create inner container for the image
-        const imageContainer = figma.createFrame();
-        imageContainer.name = `${competitorEngine} Image Container`;
-        imageContainer.resize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT * 2); // Make it taller
-        imageContainer.fills = [];
-        imageContainer.x = 0;
-        imageContainer.y = 0;
-        imageContainer.clipsContent = false; // Important: don't clip
-        
-        // Apply the image as a fill
-        imageContainer.fills = [{
-          type: 'IMAGE',
-          scaleMode: 'FIT',
-          imageHash: image.hash
-        }];
-        
-        competitorSection.appendChild(imageContainer);
-        
-        // Add small filename text at the bottom
-        const filenameText = figma.createText();
-        filenameText.characters = competitorScreenshot.filename;
-        filenameText.fontSize = 8;
-        filenameText.x = 5;
-        filenameText.y = SCREENSHOT_HEIGHT - 15;
-        filenameText.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
-        competitorSection.appendChild(filenameText);
-        
-      } catch (err: any) {
-        console.error(`Error using ${competitorEngine} screenshot for "${query}":`, err);
-        
-        // Add error message to placeholder
-        competitorSection.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.9, b: 0.9 } }];
-        
-        const placeholderText = figma.createText();
-        placeholderText.characters = `Error loading ${competitorEngine} screenshot:\n${err.message || 'Unknown error'}`;
-        placeholderText.fontSize = 12;
-        placeholderText.x = 10;
-        placeholderText.y = SCREENSHOT_HEIGHT / 2 - 20;
-        placeholderText.resize(SCREENSHOT_WIDTH - 20, 60);
-        placeholderText.textAlignHorizontal = 'CENTER';
-        placeholderText.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.2, b: 0.2 } }];
-        competitorSection.appendChild(placeholderText);
-      }
-    } else {
-      // No matching competitor screenshot
-      competitorSection.fills = [{ type: 'SOLID', color: { r: 0.92, g: 0.92, b: 0.92 } }];
-      
-      const noImageText = figma.createText();
-      noImageText.characters = `No ${competitorEngine} screenshot available for query:\n"${query}"`;
-      noImageText.fontSize = 14;
-      noImageText.x = 10;
-      noImageText.y = SCREENSHOT_HEIGHT / 2 - 30;
-      noImageText.resize(SCREENSHOT_WIDTH - 20, 60);
-      noImageText.textAlignHorizontal = 'CENTER';
-      noImageText.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
-      competitorSection.appendChild(noImageText);
-    }
-    
-    // Add metadata 
-    const metaInfo = figma.createText();
-    metaInfo.characters = `Engine: Yahoo vs ${competitorEngine.charAt(0).toUpperCase() + competitorEngine.slice(1)} | Mode: ${deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)}`;
-    metaInfo.fontSize = 12;
-    metaInfo.x = CARD_PADDING;
-    metaInfo.y = COMPARISON_CARD_HEIGHT - CARD_PADDING - 16;
-    metaInfo.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
-    
-    // Add the sections to the card
-    card.appendChild(yahooSection);
-    card.appendChild(competitorSection);
-    card.appendChild(queryTitle);
-    card.appendChild(metaInfo);
-    
-    // Add additional data columns if available
+    // 3. ADDITIONAL DATA TEXT (Container with Label + Values)
     if (additionalColumns.length > 0) {
-      // Find the matching data row by query
       let matchingDataRow: string[] | undefined;
       for (const row of dataRows) {
-        const rowQueryValue = queryColumn.index < row.length ? row[queryColumn.index].trim() : "";
-        if (rowQueryValue.toLowerCase() === query.toLowerCase()) {
+        const rowQueryValue = queryColumn.index < row.length ? row[queryColumn.index].trim().toLowerCase() : "";
+        if (rowQueryValue === query.toLowerCase()) { // query is already toLowerCase from Set
           matchingDataRow = row;
           break;
         }
       }
       
       if (matchingDataRow) {
-        // Create additional data section
-        const additionalDataTitle = figma.createText();
-        additionalDataTitle.name = "Additional Data";
-        additionalDataTitle.fontName = { family: "Inter", style: "Bold" };
-        additionalDataTitle.fontSize = 14;
-        additionalDataTitle.characters = "Additional Data:";
-        additionalDataTitle.x = CARD_PADDING;
-        additionalDataTitle.y = CARD_PADDING + 50 + SCREENSHOT_HEIGHT + 10; // Below the screenshots
-        card.appendChild(additionalDataTitle);
+        const additionalDataContainer = figma.createFrame();
+        additionalDataContainer.name = "Additional Data Section";
+        additionalDataContainer.layoutMode = "VERTICAL";
+        additionalDataContainer.itemSpacing = 8; 
+        additionalDataContainer.layoutAlign = "STRETCH"; 
+        additionalDataContainer.primaryAxisSizingMode = "AUTO";
+        additionalDataContainer.counterAxisSizingMode = "AUTO";
+        additionalDataContainer.clipsContent = false; // Default to false
+        // No internal padding for this container, relies on card's padding
+
+        const additionalDataTitleNode = figma.createText();
+        additionalDataTitleNode.name = "Additional Data Label";
+        additionalDataTitleNode.fontName = { family: "Inter", style: "Bold" };
+        additionalDataTitleNode.fontSize = TITLE_FONT_SIZE; // 24
+        additionalDataTitleNode.characters = "Additional Data:";
+        additionalDataTitleNode.layoutAlign = "STRETCH";
+        additionalDataTitleNode.textAlignHorizontal = "LEFT";
+        additionalDataContainer.appendChild(additionalDataTitleNode);
         
-        // Add each selected additional column
-        let additionalDataText = '';
-        additionalColumns.forEach((col, idx) => {
+        let additionalDataTextContent = '';
+        additionalColumns.forEach((col) => {
           if (col.index < matchingDataRow!.length) {
             const value = matchingDataRow![col.index].trim();
-            additionalDataText += `${col.name}: ${value}\n`;
+            additionalDataTextContent += `${col.name}: ${value}\n`;
           }
         });
         
-        if (additionalDataText) {
-          const additionalData = figma.createText();
-          additionalData.name = "Additional Data Values";
-          additionalData.fontSize = 12;
-          additionalData.characters = additionalDataText;
-          additionalData.x = CARD_PADDING;
-          additionalData.y = CARD_PADDING + 50 + SCREENSHOT_HEIGHT + 30; // Below the additionalDataTitle
-          additionalData.resize(COMPARISON_CARD_WIDTH - (CARD_PADDING * 2), 60);
-          card.appendChild(additionalData);
+        if (additionalDataTextContent) {
+          // Remove trailing newline
+          additionalDataTextContent = additionalDataTextContent.trim();
+          const additionalDataValuesNode = figma.createText();
+          additionalDataValuesNode.name = "Additional Data Values";
+          additionalDataValuesNode.fontName = { family: "Inter", style: "Regular" };
+          additionalDataValuesNode.fontSize = TEXT_FONT_SIZE; // 16
+          additionalDataValuesNode.characters = additionalDataTextContent;
+          additionalDataValuesNode.layoutAlign = "STRETCH";
+          additionalDataValuesNode.textAlignHorizontal = "LEFT";
+          additionalDataContainer.appendChild(additionalDataValuesNode);
         }
+        card.appendChild(additionalDataContainer);
       }
     }
     
-    // Add card to main frame
+    // 4. FOOTER (Meta Info)
+    const metaInfoNode = figma.createText();
+    metaInfoNode.name = "Footer Meta Info";
+    metaInfoNode.fontName = { family: "Inter", style: "Regular" };
+    metaInfoNode.fontSize = 12;
+    metaInfoNode.characters = `Engine: Yahoo vs ${competitorEngine.charAt(0).toUpperCase() + competitorEngine.slice(1)} | Mode: ${deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)}`;
+    metaInfoNode.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
+    metaInfoNode.layoutAlign = "STRETCH";
+    metaInfoNode.textAlignHorizontal = "LEFT"; 
+    card.appendChild(metaInfoNode);
+    
     mainFrame.appendChild(card);
   }
   
-  // Add the main frame to the Figma document
+  // Adjust mainFrame size if it's not using autolayout for its primary axis (e.g. if it's HORIZONTAL with WRAP)
+  // If mainFrame is HORIZONTAL and WRAP, its height might need to be calculated.
+  // For simplicity, if it's just one row of cards, its height will be auto. If it wraps, it becomes more complex.
+  // Current mainFrame setup uses AUTO sizing modes, so it should adjust.
+
   figma.currentPage.appendChild(mainFrame);
-  
-  // Select the main frame and zoom to it
   figma.currentPage.selection = [mainFrame];
   figma.viewport.scrollAndZoomIntoView([mainFrame]);
   
-  // Notify completion
-  figma.notify('Screenshot comparisons imported successfully!');
-  
-  // Close the plugin
+  figma.notify('Screenshot comparisons imported successfully with new layout!');
   figma.closePlugin();
 }
 
