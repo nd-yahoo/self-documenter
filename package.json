@@ -2,18 +2,16 @@
   "name": "self-documenter",
   "version": "1.0.0",
   "description": "CSV to Screenshot Importer for Figma",
-  "main": "code.js",
+  "main": "build/code.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:modular": "tsc -p tsconfig.json && mv dist/src/index.js dist/code.js",
     "lint": "eslint --ext .ts,.tsx --ignore-pattern node_modules .",
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
     "watch": "npm run build -- --watch",
-    "watch:modular": "tsc -p tsconfig.json --watch && mv dist/src/index.js dist/code.js",
     "screenshot": "ts-node search_screenshot.tsx"
   },
-  "author": "",
-  "license": "",
+  "author": "Nick Dazé",
+  "license": "MIT",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
     "@figma/plugin-typings": "*",

@@ -30,7 +30,7 @@
   - `createFigmaImageWithMemoryManagement` → `src/utils/imageUtils.ts`
   - `resizeImageBytes` → `src/utils/imageUtils.ts`
   - `processFigmaImage` → `src/utils/imageUtils.ts`
-  - `parseCSV` → `src/utils/csvUtils.ts`
+  - `parseCSV` → `src/utils/CsvUtils.ts`
   - `createTextNode`, `createFrame` → `src/utils/figmaUtils.ts` (new file)
   - `notifyUser` → `src/utils/notifications.ts`
   - `getSearchUrl` → `src/utils/urlUtils.ts` (new file)

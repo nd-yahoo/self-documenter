@@ -2,7 +2,7 @@
   "name": "self-documenter",
   "id": "1504301916610915651",
   "api": "1.0.0",
-  "main": "code.js",
+  "main": "build/code.js",
   "capabilities": [],
   "enableProposedApi": false,
   "documentAccess": "dynamic-page",
