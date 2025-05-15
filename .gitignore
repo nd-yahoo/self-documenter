@@ -9,3 +9,5 @@ code.js
 
 screenshots/
 chrome-data-dir/
+build/
+.DS_Store
