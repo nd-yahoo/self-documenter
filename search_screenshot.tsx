@@ -11,6 +11,7 @@ import csvParser from 'csv-parser';
 import { chromium, Browser, BrowserContext, devices } from 'playwright';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import ProgressBar from 'progress';
 
 interface Args {
   csvFile: string;
@@ -125,6 +126,14 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
     }
   );
 
+  // Initialize progress bar
+  const bar = new ProgressBar('  Processing [:bar] :percent :etas - :query', {
+    complete: '=',
+    incomplete: ' ',
+    width: 50,
+    total: queries.length,
+  });
+
   // Set up browser context based on chosen mode
   let browser: Browser;
   let context: BrowserContext;
@@ -205,11 +214,12 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
       outputDir, 
       delay,
       useChrome,
-      quality
+      quality,
+      bar
     ));
     
     await Promise.all(batchPromises);
-    console.log(`Completed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(queries.length / batchSize)}`);
+    // console.log(`Completed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(queries.length / batchSize)}`); // Replaced by progress bar
   }
 
   await context.close();
@@ -229,7 +239,8 @@ async function processQuery(
   output: string, 
   delay: number,
   useChrome: boolean,
-  quality: number
+  quality: number,
+  bar: ProgressBar
 ): Promise<void> {
   // Format safe filename from query
   const safeQuery = query.replace(/[^a-z0-9 _]/gi, '_').slice(0, 40).trim();
@@ -296,7 +307,7 @@ async function processQuery(
           console.log('Waiting 30 seconds for you to solve the CAPTCHA...');
           await page.waitForTimeout(30000); // Wait 30 seconds for manual CAPTCHA solving
         } else {
-          console.warn(`CAPTCHA detected for query "${query}". Switching to another search engine...`);
+          bar.interrupt(`CAPTCHA detected for query "${query}". Switching to another search engine...`);
           retries++;
           continue;
         }
@@ -319,24 +330,24 @@ async function processQuery(
       });
       
       // Log device pixel ratio and dimensions to verify scaling is working correctly
-      console.log(`Screenshot saved: ${filepath}`);
-      console.log(`Requested dimensions: ${deviceName === 'mobile' ? page.viewportSize()?.width || 390 : 1920}x1800`);
-      console.log(`Device pixel ratio: 1 (forced via deviceScaleFactor)`);
+      bar.interrupt(`Screenshot saved: ${filepath}`);
+      bar.interrupt(`Requested dimensions: ${deviceName === 'mobile' ? page.viewportSize()?.width || 390 : 1920}x1800`);
+      bar.interrupt(`Device pixel ratio: 1 (forced via deviceScaleFactor)`);
       
-      console.log(`Saved: ${filepath}`);
       success = true;
     } catch (err) {
       retries++;
       if (retries <= maxRetries) {
-        console.warn(`Attempt ${retries}/${maxRetries} failed for query '${query}'. Retrying...`);
+        bar.interrupt(`Attempt ${retries}/${maxRetries} failed for query '${query}'. Retrying...`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
       } else {
-        console.error(`Failed to process query '${query}' after ${maxRetries} retries:`, err);
+        bar.interrupt(`Failed to process query '${query}' after ${maxRetries} retries: ${err}`);
       }
     } finally {
       await page.close();
     }
   }
+  bar.tick({ query: query.length > 20 ? query.substring(0, 17) + "..." : query });
 }
 
 (async () => {
