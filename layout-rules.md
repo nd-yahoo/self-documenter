@@ -10,3 +10,10 @@ Parent component
     Padding: 40
 
 
+<top-level-card>
+    <yahoo-screenshot></yahoo-screenshot>
+    <competitor-screenshot></competitor-screenshot>
+    <search-info-text></search-info-text>
+    <additional-data-text></additional-data-text>
+    <footer></footer>
+</top-level-card>
