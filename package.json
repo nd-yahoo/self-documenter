@@ -1,6 +1,6 @@
 {
   "name": "self-documenter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "CSV to Screenshot Importer for Figma",
   "main": "build/code.js",
   "scripts": {
