@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "csv-parser": "^3.0.0",
-    "papaparse": "^5.4.1",
+    "papaparse": "^5.5.3",
     "playwright": "^1.40.0",
     "progress": "^2.0.3",
     "yargs": "^17.7.2"
