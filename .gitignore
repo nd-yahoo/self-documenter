@@ -1,3 +1,5 @@
+.DS_Store
+
 # Node
 *.log
 *.log.*
@@ -8,6 +10,5 @@ dist/
 build/
 code.js
 
-screenshots/
 chrome-data-dir/
-.DS_Store
+screenshots/
