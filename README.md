@@ -20,22 +20,51 @@ This Figma plugin allows you to:
 
 ## Installation
 
-1. Clone this repository
-2. Install dependencies:
+### Prerequisites (for new machines)
+
+1. Install Homebrew:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+2. Install Git:
+   ```
+   brew install git
+   ```
+3. Install Node.js and npm:
+   ```
+   brew install node
+   ```
+4. Install Figma desktop app:
+   ```
+   brew install --cask figma
+   ```
+
+### Plugin Setup
+
+1. Change directory to your Mac Desktop
+   ```
+   cd ~/Desktop/
+   ```
+2. Clone this repository: 
+   ```
+   git clone https://github.com/nd-yahoo/self-documenter.git
+   cd self-documenter
+   ```
+3. Install dependencies:
    ```
    npm install
    ```
-3. Install Playwright browsers:
+4. Install Playwright browsers:
    ```
    npx playwright install chromium
    ```
-4. Build the plugin:
+5. Build the plugin:
    ```
    npm run build
    ```
-5. Open Figma desktop app
-6. Go to Plugins > Development > Import plugin from manifest...
-7. Select the manifest.json file from this project
+6. Open Figma desktop app
+7. Go to Plugins > Development > Import plugin from manifest...
+8. Select the manifest.json file from this project
 
 ## Usage
 

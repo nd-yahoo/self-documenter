@@ -1,0 +1,15 @@
+EntityString,nameEntity,query
+Entity.Author.Person.Writer,Person,JD Salinger
+Entity.CreativeWork.MediaWork.Album,Audio,Radiohead OK Computer
+Entity.CreativeWork.MediaWork.Book,Text,Caught Stealing book
+Entity.CreativeWork.MediaWork.Movie,Film and TV,Alien movie
+Entity.CreativeWork.MediaWork.Song,Audio,Message in a Bottle song
+Entity.CreativeWork.MediaWork.TvSeries,Film and TV,Band of Brothers
+Entity.FictionalEntity.FictionalCharacter,Text,Bruce Wayne
+Entity.MusicArtist.Person.Musician,Audio,Elton John
+Entity.Organization.Group.SportTeam,Sports,LA Kings
+Entity.Person.Actor,Person,Elizabeth Moss
+Entity.Person.Athlete,Sports,LeBron James
+Entity.Person.Coach,Sports,Mike Ditka
+Entity.Person.Director,Person,Greta Gerwig
+Entity.Person.VisualArtist,Person,Wayne Thiebaud
