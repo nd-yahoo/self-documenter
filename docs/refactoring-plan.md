@@ -8,7 +8,7 @@
 ## Proposed Changes
 
 ### 1. Types
-- Move all interfaces to `src/types/index.ts`
+- Move all interfaces to `src/types/index.ts` (already done)
   - QueryColumn
   - AdditionalColumn
   - ScreenshotData
