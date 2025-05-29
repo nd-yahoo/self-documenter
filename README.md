@@ -26,15 +26,25 @@ This Figma plugin allows you to:
    ```bash
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
-2. Install Git:
+2. Add Homebrew to your path
+   ```bash
+   echo >> ~/.zprofile
+   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+   eval "$(/opt/homebrew/bin/brew shellenv)"
    ```
-   brew install git
+3. Install Git:
+   ```   brew install git
    ```
-3. Install Node.js and npm:
+4. Install Node.js and npm:
    ```
    brew install node
    ```
-4. Install Figma desktop app:
+5. Symlink npm and homebrew
+   ```bash
+   rm '/opt/homebrew/bin/npm'
+   brew link --overwrite node
+   ```
+6. Install Figma desktop app:
    ```
    brew install --cask figma
    ```
@@ -82,7 +92,7 @@ This Figma plugin allows you to:
 You can also use the included command line tool to generate screenshots outside of Figma:
 
 ```
-npm run screenshot path/to/your/csvfile.csv --column=0 --engine=google --mode=mobile --output=screenshots
+npm run screenshot -- ./demo.csv --column="query" --engine=yahoo --mode=mobile --output=screenshots
 ```
 
 Options:
@@ -133,3 +143,4 @@ npm run watch:modular    # Watch for changes and rebuild using modular structure
 ## License
 
 [MIT License](LICENSE)
+
