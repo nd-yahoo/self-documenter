@@ -20,6 +20,11 @@ if ! command -v brew &> /dev/null; then
     else
         eval "$(/usr/local/bin/brew shellenv)"
     fi
+    
+    # Add Homebrew to PATH permanently
+    echo "Adding Homebrew to your PATH permanently..."
+    echo >> ~/.zprofile
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 else
     echo "✓ Homebrew already installed"
 fi
@@ -36,8 +41,21 @@ fi
 if ! command -v node &> /dev/null; then
     echo "Installing Node.js..."
     brew install node
+    
+    # Fix npm symlink issues if they exist
+    echo "Fixing npm symlink..."
+    if [ -f '/opt/homebrew/bin/npm' ]; then
+        rm '/opt/homebrew/bin/npm' 2>/dev/null || true
+    fi
+    brew link --overwrite node
 else
     echo "✓ Node.js already installed"
+    # Still run the symlink fix in case there are issues
+    echo "Ensuring npm symlink is correct..."
+    if [ -f '/opt/homebrew/bin/npm' ]; then
+        rm '/opt/homebrew/bin/npm' 2>/dev/null || true
+    fi
+    brew link --overwrite node 2>/dev/null || true
 fi
 
 # Install Figma if needed
