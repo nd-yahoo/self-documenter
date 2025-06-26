@@ -9,7 +9,6 @@ import { notifyUser, sendProgressUpdate, sendDebugInfo } from '../utils/notifica
  * 
  * @param csvData Raw CSV string data
  * @param queryColumn Selected query column information
- * @param additionalColumns Additional columns to include
  * @param yahooScreenshots Array of Yahoo screenshots
  * @param competitorScreenshots Array of competitor screenshots
  * @param competitorEngine Name of the competitor search engine
@@ -17,7 +16,6 @@ import { notifyUser, sendProgressUpdate, sendDebugInfo } from '../utils/notifica
 export async function processCSVWithScreenshots(
   csvData: string,
   queryColumn: QueryColumn,
-  additionalColumns: AdditionalColumn[],
   deviceMode: string,
   yahooScreenshots: ScreenshotData[],
   competitorScreenshots: ScreenshotData[],
@@ -29,6 +27,11 @@ export async function processCSVWithScreenshots(
   // Simple CSV parsing without validation errors
   const lines = csvData.split('\n').filter(line => line.trim() !== '');
   const headers = lines[0].split(',');
+  
+  // Automatically include all columns except the query column
+  const additionalColumns: AdditionalColumn[] = headers
+    .map((header, index) => ({ name: header, index }))
+    .filter(col => col.index !== queryColumn.index);
   
   // Create data rows directly - skip all the validation that was causing problems
   const dataRows = lines.slice(1).map(line => line.split(','));
