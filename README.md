@@ -33,7 +33,7 @@ This Figma plugin allows you to:
    eval "$(/opt/homebrew/bin/brew shellenv)"
    ```
 3. Install Git:
-   ```   
+   ```
    brew install git
    ```
 4. Install Node.js and npm:
