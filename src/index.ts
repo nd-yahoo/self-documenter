@@ -45,7 +45,6 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       // Extract data from message
       const csvData = msg.csvData || '';
       const queryColumn = msg.queryColumn || { index: 0, name: '' };
-      const additionalColumns = msg.additionalColumns || [];
       const deviceMode = msg.deviceMode || 'mobile';
       const yahooScreenshots = msg.yahooScreenshots || [];
       const competitorScreenshots = msg.competitorScreenshots || [];
@@ -63,7 +62,6 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       await processCSVWithScreenshots(
         csvData,
         queryColumn,
-        additionalColumns,
         deviceMode,
         yahooScreenshots,
         competitorScreenshots,
