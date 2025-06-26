@@ -20,7 +20,6 @@ interface Args {
   engine: 'google' | 'bing' | 'duckduckgo' | 'yahoo';
   delay: number;
   mode: 'mobile' | 'desktop';
-  useChrome: boolean;
   compareMode: boolean;
   quality: number;
 }
@@ -30,24 +29,24 @@ async function runCompareMode(args: Args) {
   console.log(`Running in compare mode: Capturing screenshots for Yahoo and ${args.engine}`);
   
   // First run Yahoo (baseline) - always use headless browser for Yahoo
-  const yahooArgs = { ...args, engine: 'yahoo' as const, useChrome: false };
+  const yahooArgs = { ...args, engine: 'yahoo' as const };
   console.log('Capturing Yahoo screenshots with headless browser');
   await generateSearchScreenshots(yahooArgs);
   
   // Then run the specified engine (or Google if Yahoo was specified)
   const compareEngine = args.engine === 'yahoo' ? 'google' : args.engine;
   
-  // Only use Chrome for Google searches if requested, otherwise use headless
-  const useChrome = compareEngine === 'google' ? args.useChrome : false;
-  const compareArgs = { ...args, engine: compareEngine, useChrome };
+  // For Google, we'll now automatically use the headed browser
+  const useChromeForCompare = compareEngine === 'google';
+  const compareArgs = { ...args, engine: compareEngine };
   
-  console.log(`Capturing ${compareEngine} screenshots with ${useChrome ? 'Chrome browser' : 'headless browser'}`);
+  console.log(`Capturing ${compareEngine} screenshots with ${useChromeForCompare ? 'Chrome browser' : 'headless browser'}`);
   await generateSearchScreenshots(compareArgs);
   
   console.log(`Compare mode complete. Screenshots captured for Yahoo and ${compareEngine}`);
 }
 
-async function generateSearchScreenshots({ csvFile, output, column, engine, delay, mode, useChrome, quality }: Args) {
+async function generateSearchScreenshots({ csvFile, output, column, engine, delay, mode, quality }: Omit<Args, 'compareMode'>) {
   // Create timestamped directory for this run
   const now = new Date();
   const timestamp = now.toISOString()
@@ -139,9 +138,8 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
   let context: BrowserContext;
   const deviceName = mode === 'mobile' ? 'mobile' : 'desktop';
 
-  // Only use Chrome for Google searches, even if useChrome is true
-  // This helps avoid CAPTCHAs with Google while keeping Yahoo searches fast with headless
-  const shouldUseChrome = useChrome && engine === 'google';
+  // Automatically use headed Chrome for Google searches to handle CAPTCHAs.
+  const shouldUseChrome = engine === 'google';
   
   if (shouldUseChrome) {
     // Use system Chrome with persistent context
@@ -202,7 +200,7 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
   }
 
   // Process queries in batches
-  const batchSize = useChrome ? 1 : 3; // Only process 1 page at a time when using real Chrome to avoid overwhelming
+  const batchSize = shouldUseChrome ? 1 : 3; // Only process 1 page at a time when using real Chrome to avoid overwhelming
   for (let i = 0; i < queries.length; i += batchSize) {
     const batch = queries.slice(i, i + batchSize);
     const batchPromises = batch.map((query, batchIndex) => processQuery(
@@ -213,7 +211,7 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
       context, 
       outputDir, 
       delay,
-      useChrome,
+      shouldUseChrome,
       quality,
       bar
     ));
@@ -223,7 +221,7 @@ async function generateSearchScreenshots({ csvFile, output, column, engine, dela
   }
 
   await context.close();
-  if (!useChrome) {
+  if (!shouldUseChrome) {
     await browser.close(); // Don't close the browser when using persistent context
   }
   
@@ -238,7 +236,7 @@ async function processQuery(
   context: BrowserContext, 
   output: string, 
   delay: number,
-  useChrome: boolean,
+  shouldUseChrome: boolean,
   quality: number,
   bar: ProgressBar
 ): Promise<void> {
@@ -302,12 +300,12 @@ async function processQuery(
       });
       
       if (hasCaptcha) {
-        if (useChrome) {
+        if (shouldUseChrome) {
           console.log(`CAPTCHA detected for query "${query}". Since you're using system Chrome, please solve the CAPTCHA manually.`);
           console.log('Waiting 30 seconds for you to solve the CAPTCHA...');
           await page.waitForTimeout(30000); // Wait 30 seconds for manual CAPTCHA solving
         } else {
-          bar.interrupt(`CAPTCHA detected for query "${query}". Switching to another search engine...`);
+          bar.interrupt(`CAPTCHA detected for query "${query}". Retrying...`);
           retries++;
           continue;
         }
@@ -382,11 +380,6 @@ async function processQuery(
       default: 'mobile',
       description: 'Device mode: mobile or desktop',
     })
-    .option('use-chrome', {
-      type: 'boolean',
-      default: false,
-      description: 'Use system Chrome browser for Google searches (helps avoid CAPTCHAs)',
-    })
     .option('compare-mode', {
       type: 'boolean',
       default: false,
@@ -399,7 +392,6 @@ async function processQuery(
     })
     .example('$0 data.csv --column="query"', 'Screenshot search terms from the "query" column')
     .example('$0 data.csv --column=2', 'Screenshot search terms from the 3rd column (index 2)')
-    .example('$0 data.csv --use-chrome', 'Screenshot using system Chrome browser')
     .example('$0 data.csv --compare-mode --engine=google', 'Capture both Yahoo and Google screenshots')
     .example('$0 data.csv --quality=60', 'Use lower quality (60%) for smaller file sizes')
     .demandCommand(1)
@@ -417,7 +409,6 @@ async function processQuery(
     engine: parsedArgv.engine as 'google' | 'bing' | 'duckduckgo' | 'yahoo',
     delay: parsedArgv.delay,
     mode: parsedArgv.mode as 'mobile' | 'desktop',
-    useChrome: parsedArgv.useChrome,
     compareMode: parsedArgv.compareMode,
     quality: parsedArgv.quality
   };
